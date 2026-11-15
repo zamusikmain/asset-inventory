@@ -1,0 +1,42 @@
+{% extends 'base.html.twig' %}
+{% block title %}Типы и атрибуты{% endblock %}
+{% block body %}
+<h1>Типы активов и настраиваемые атрибуты</h1>
+<p class="muted small">Характеристики (RAM, SSD, CPU, диагональ, срок лицензии и др.) задаются как атрибуты типа, а не как столбцы основной таблицы.</p>
+<form method="post" action="{{ path('type_save') }}" class="panel actions">
+    <input type="text" name="category" placeholder="Категория (напр. Компьютеры)" required style="max-width:260px">
+    <input type="text" name="name" placeholder="Тип (напр. Ноутбук)" required style="max-width:260px">
+    <input type="hidden" name="_token" value="{{ csrf_token('type_save') }}"><button class="btn primary">Добавить тип</button>
+</form>
+{% for t in types %}
+<div class="panel" id="t{{ t.id }}">
+    <div class="actions" style="justify-content:space-between">
+        <h3 style="margin:0">{{ t.category }} / {{ t.name }} <span class="small muted">активов: {{ counts[t.id] ?? 0 }}</span></h3>
+        <details><summary class="small">Переименовать</summary>
+            <form method="post" action="{{ path('type_save') }}" class="actions" style="margin-top:6px">
+                <input type="hidden" name="id" value="{{ t.id }}"><input type="text" name="category" value="{{ t.category }}"><input type="text" name="name" value="{{ t.name }}">
+                <input type="hidden" name="_token" value="{{ csrf_token('type_save') }}"><button class="btn small">OK</button></form></details>
+    </div>
+    <table style="margin-top:8px">
+        <thead><tr><th>Код</th><th>Название</th><th>Тип данных</th><th>Ед.</th><th>Варианты</th><th>Обяз.</th><th></th></tr></thead>
+        {% for a in t.attributes %}
+            <tr><td class="mono small">{{ a.code }}</td><td>{{ a.label }}</td><td class="small">{{ data_types|filter(v => v == a.dataType)|keys|first }}</td>
+                <td class="small">{{ a.unit }}</td><td class="small">{{ a.options|join(', ') }}</td><td>{{ a.required ? 'да' }}</td>
+                <td>{% if is_granted('ROLE_ADMIN') %}<form method="post" action="{{ path('attribute_delete', {id: a.id}) }}" class="inline-form" data-confirm="Удалить атрибут и все его значения?">
+                    <input type="hidden" name="_token" value="{{ csrf_token('attrdel' ~ a.id) }}"><button class="btn small danger">✕</button></form>{% endif %}</td></tr>
+        {% endfor %}
+    </table>
+    <details style="margin-top:8px"><summary class="small">+ атрибут</summary>
+        <form method="post" action="{{ path('attribute_save', {id: t.id}) }}" class="form-grid" style="margin-top:8px">
+            <div class="field"><label>Код</label><input type="text" name="code" placeholder="ram_gb" required pattern="[a-z][a-z0-9_]*"></div>
+            <div class="field"><label>Название</label><input type="text" name="label" placeholder="Оперативная память" required></div>
+            <div class="field"><label>Тип данных</label><select name="data_type">{% for l, v in data_types %}<option value="{{ v }}">{{ l }}</option>{% endfor %}</select></div>
+            <div class="field"><label>Единица</label><input type="text" name="unit" placeholder="ГБ"></div>
+            <div class="field"><label>Варианты (для списка, по строке)</label><textarea name="options" rows="2"></textarea></div>
+            <div class="field"><label>Порядок</label><input type="number" name="sort_order" value="0"><label style="font-weight:normal;margin-top:6px"><input type="checkbox" name="required" value="1"> обязательный</label></div>
+            <input type="hidden" name="_token" value="{{ csrf_token('attr' ~ t.id) }}"><div><button class="btn">Добавить</button></div>
+        </form>
+    </details>
+</div>
+{% else %}<p class="muted">Типов пока нет.</p>{% endfor %}
+{% endblock %}

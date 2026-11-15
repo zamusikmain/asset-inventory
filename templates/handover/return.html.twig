@@ -1,0 +1,55 @@
+{% extends 'base.html.twig' %}
+{% import '_macros.html.twig' as m %}
+{% block title %}Возврат оборудования{% endblock %}
+{% block body %}
+<h1>Возврат оборудования</h1>
+{% if not employee %}
+<div class="panel">
+    <div class="field" style="max-width:520px"><label>Сотрудник</label><input type="search" id="emp-q" placeholder="ФИО или email…" autocomplete="off"></div>
+    <div id="emp-res"></div>
+</div>
+{% else %}
+<form method="post" class="panel">
+    <p><b>{{ employee.name }}</b> — {{ employee.position }} <a class="btn small" href="{{ path('handover_return') }}">Сменить</a></p>
+    <div class="field" style="max-width:420px"><label>Отметить сканером (инв. номер + Enter)</label><input type="text" id="scan" class="scan-box" autocomplete="off"></div>
+    <div id="scan-msg"></div>
+    <div class="table-wrap"><table>
+        <thead><tr><th><input type="checkbox" id="all"></th><th>Инв. номер</th><th>Наименование</th><th>Серийный №</th><th>Комплект</th></tr></thead>
+        {% for a in current %}
+            <tr><td><input type="checkbox" name="assets[]" value="{{ a.id }}" data-inv="{{ a.inventoryNumber }}" data-bc="{{ a.barcode }}" {{ preselect == a.id.toRfc4122 ? 'checked' }}></td>
+                <td class="mono">{{ a.inventoryNumber }}</td><td>{{ a.name }}</td><td class="mono small">{{ a.serialNumber }}</td><td class="small">{{ a.bundle ? a.bundle.name }}</td></tr>
+        {% else %}<tr><td colspan="5" class="muted">За сотрудником ничего не закреплено.</td></tr>{% endfor %}
+    </table></div>
+    <div class="grid g3" style="margin-top:12px">
+        <div class="field"><label>Статус после возврата</label><select name="status">
+            <option value="in_stock">На складе</option><option value="damaged">Повреждено</option><option value="repair">В ремонте</option></select></div>
+        <div class="field"><label>Место хранения</label>{{ m.location_select('location', locations, null, '— без изменения —') }}</div>
+        <div class="field"><label>Комментарий</label><input type="text" name="comment"></div>
+    </div>
+    <input type="hidden" name="employee" value="{{ employee.id }}">
+    <input type="hidden" name="_token" value="{{ csrf_token('handover_return') }}">
+    <button class="btn primary">Оформить возврат и сформировать акт</button>
+</form>
+{% endif %}
+{% endblock %}
+{% block scripts %}
+<script>
+{% if not employee %}
+const q = document.getElementById('emp-q'), res = document.getElementById('emp-res'); let t; q.focus();
+q.addEventListener('input', () => { clearTimeout(t); t = setTimeout(async () => {
+  if (q.value.trim().length < 2) { res.innerHTML = ''; return; }
+  const d = await App.api('{{ path('api_employees') }}?q=' + encodeURIComponent(q.value));
+  res.innerHTML = d.items.map(e => `<p><a href="?employee=${e.id}">${App.esc(e.name)}</a> <span class="muted small">${App.esc(e.position || '')}</span></p>`).join('') || '<p class="muted">Не найдено</p>';
+}, 250); });
+{% else %}
+document.getElementById('all')?.addEventListener('change', e => document.querySelectorAll('input[name="assets[]"]').forEach(c => c.checked = e.target.checked));
+const msg = document.getElementById('scan-msg');
+App.bindScanner(document.getElementById('scan'), code => {
+  code = code.toUpperCase();
+  const cb = [...document.querySelectorAll('input[name="assets[]"]')].find(c => c.dataset.inv === code || c.dataset.bc === code);
+  msg.innerHTML = cb ? `<div class="flash success">Отмечено: ${App.esc(code)}</div>` : `<div class="flash error">${App.esc(code)} не закреплен за сотрудником</div>`;
+  if (cb) cb.checked = true;
+});
+{% endif %}
+</script>
+{% endblock %}

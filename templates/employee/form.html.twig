@@ -1,0 +1,11 @@
+{% extends 'base.html.twig' %}
+{% block title %}{{ is_new ? 'Новый сотрудник' : employee.name }}{% endblock %}
+{% block body %}
+<h1>{{ is_new ? 'Новый сотрудник' : 'Сотрудник: ' ~ employee.name }}</h1>
+{{ form_start(form, {attr: {class: 'panel'}}) }}
+<div class="form-grid">{{ form_widget(form) }}</div>
+<p class="help">UUID, Entra Object ID, UPN, источник записи и дата синхронизации хранятся заранее — для будущей синхронизации с Microsoft Entra ID.</p>
+<div class="actions"><button class="btn primary">Сохранить</button>
+    <a class="btn" href="{{ is_new ? path('employee_index') : path('employee_show', {id: employee.id}) }}">Отмена</a></div>
+{{ form_end(form) }}
+{% endblock %}

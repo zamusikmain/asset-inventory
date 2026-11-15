@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Подписание акта {{ doc.number }}</title>
+    <link rel="stylesheet" href="{{ asset('css/app.css') }}">
+</head>
+<body>
+<main class="main" style="max-width:900px;margin:0 auto">
+    <h1>{{ doc.typeLabel }} № {{ doc.number }}</h1>
+    <p class="muted">{{ org_name }} · {{ doc.createdAt|dt }}</p>
+    <div class="panel">
+        <p><b>{{ doc.header.employee.name }}</b>{% if doc.header.employee.position %}, {{ doc.header.employee.position }}{% endif %}</p>
+        <div class="table-wrap"><table>
+            <thead><tr><th>№</th><th>Инв. номер</th><th>Наименование</th><th>Серийный №</th></tr></thead>
+            {% for i in doc.items %}<tr><td>{{ loop.index }}</td><td class="mono">{{ i.inventory_number }}</td><td>{{ i.name }} {{ i.model }}</td><td class="mono small">{{ i.serial_number }}</td></tr>{% endfor %}
+        </table></div>
+        <p><a class="btn" href="{{ path('sign_document_pdf', {id: doc.id, token: token}) }}" target="_blank">Открыть PDF акта</a></p>
+    </div>
+    <div class="panel">
+        {% if doc.status == 'signed' %}
+            <div class="flash success">Акт подписан {{ doc.signedAt|dt }}. Спасибо!</div>
+        {% elseif doc.status == 'expired' %}
+            <div class="flash error">Срок подписания истек. Обратитесь в IT: {{ it_contacts }}</div>
+        {% else %}
+            <h3 style="margin-top:0">Подписание ЭЦП</h3>
+            <ol class="small">
+                <li>Запустите NCALayer (если не запущен).</li>
+                <li>Нажмите «Подписать ЭЦП» и выберите ключ подписи (RSA/GOST, файл .p12 или Kaztoken).</li>
+            </ol>
+            <button class="btn primary" id="sign">Подписать ЭЦП</button>
+            <div id="msg"></div>
+        {% endif %}
+        <p class="small muted">Вопросы: {{ it_contacts }}</p>
+    </div>
+</main>
+<script src="{{ asset('js/app.js') }}"></script>
+<script src="{{ asset('js/ncalayer.js') }}"></script>
+<script>
+document.getElementById('sign')?.addEventListener('click', async e => {
+  const btn = e.target, msg = document.getElementById('msg'); btn.disabled = true;
+  try {
+    msg.innerHTML = '<p class="muted">Подготовка документа…</p>';
+    const d = await App.api('{{ path('sign_document_data', {id: doc.id, token: token}) }}');
+    msg.innerHTML = '<p class="muted">Выберите ключ в окне NCALayer…</p>';
+    const cms = await NCALayer.signCms(d.data);
+    const r = await App.api('{{ path('sign_document_submit', {id: doc.id, token: token}) }}', {method: 'POST', body: JSON.stringify({cms})});
+    msg.innerHTML = `<div class="flash ${r.verification === 'valid' ? 'success' : (r.verification === 'pending' ? 'warning' : 'error')}">${App.esc(r.label)}. ${App.esc(r.status_label)}</div>`;
+    if (r.verification !== 'invalid') btn.remove(); else btn.disabled = false;
+  } catch (err) { msg.innerHTML = `<div class="flash error">${App.esc(err.message)}</div>`; btn.disabled = false; }
+});
+</script>
+</body>
+</html>

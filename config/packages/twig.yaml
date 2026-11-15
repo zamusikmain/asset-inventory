@@ -1,0 +1,13 @@
+twig:
+    file_name_pattern: '*.twig'
+    form_themes: ['form/theme.html.twig']
+    date:
+        format: 'd.m.Y H:i'
+        timezone: 'Asia/Almaty'
+    globals:
+        org_name: '%app.org_name%'
+        it_contacts: '%app.it_contacts%'
+
+when@test:
+    twig:
+        strict_variables: true

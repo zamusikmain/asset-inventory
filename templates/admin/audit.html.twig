@@ -1,0 +1,28 @@
+{% extends 'base.html.twig' %}
+{% import '_macros.html.twig' as m %}
+{% block title %}Журнал аудита{% endblock %}
+{% block body %}
+<h1>Журнал аудита</h1>
+<form class="filters panel">
+    <div class="field"><label>Действие (префикс)</label><input type="text" name="action" value="{{ f.action ?? '' }}" placeholder="asset., secret., import."></div>
+    <div class="field"><label>Пользователь</label><input type="text" name="user" value="{{ f.user ?? '' }}"></div>
+    <div class="field"><label>Тип объекта</label><input type="text" name="object_type" value="{{ f.object_type ?? '' }}" placeholder="asset"></div>
+    <div class="field"><label>ID объекта</label><input type="text" name="object_id" value="{{ f.object_id ?? '' }}"></div>
+    <div class="field"><label>С</label><input type="date" name="from" value="{{ f.from ?? '' }}"></div>
+    <div class="field"><label>По</label><input type="date" name="to" value="{{ f.to ?? '' }}"></div>
+    <button class="btn primary">Найти</button>
+</form>
+<div class="table-wrap"><table>
+    <thead><tr><th>Дата</th><th>Пользователь</th><th>Действие</th><th>Объект</th><th>Было</th><th>Стало</th><th>IP / сессия / источник</th><th>Комментарий / документ</th></tr></thead>
+    {% for e in pager %}<tr>
+        <td class="small nowrap">{{ e.occurredAt|dt('d.m.Y H:i:s') }}</td><td class="small">{{ e.username }}</td>
+        <td class="mono small">{{ e.action }}</td>
+        <td class="small">{{ e.objectType }}{% if e.objectLabel %}<div>{% if e.objectType == 'asset' and e.objectId %}<a href="{{ path('asset_show', {id: e.objectId}) }}">{{ e.objectLabel }}</a>{% else %}{{ e.objectLabel }}{% endif %}</div>{% endif %}</td>
+        <td class="small"><pre style="margin:0;white-space:pre-wrap;max-width:260px">{{ e.oldValues ? e.oldValues|json_pretty }}</pre></td>
+        <td class="small"><pre style="margin:0;white-space:pre-wrap;max-width:260px">{{ e.newValues ? e.newValues|json_pretty }}</pre></td>
+        <td class="small">{{ e.ip }}<div class="muted mono">{{ e.sessionId ? e.sessionId|slice(0, 10) }}</div>{{ e.source }}</td>
+        <td class="small">{{ e.comment }}{% if e.relatedDocument %}<div>{{ e.relatedDocument }}</div>{% endif %}</td></tr>
+    {% else %}<tr><td colspan="8" class="muted">Записей нет</td></tr>{% endfor %}
+</table></div>
+{{ m.pager(pager, 'admin_audit', f) }}
+{% endblock %}

@@ -1,0 +1,27 @@
+{% extends 'base.html.twig' %}
+{% block title %}Протокол импорта{% endblock %}
+{% block body %}
+{% set p = job.protocol %}
+<h1>Протокол импорта №{{ job.id }}</h1>
+<div class="panel"><dl class="props">
+    <dt>Файл</dt><dd>{{ job.originalName }} <span class="small muted mono">SHA-256 {{ job.sha256 }}</span></dd>
+    <dt>Лист</dt><dd>{{ job.sheetName }}</dd>
+    <dt>Загрузил</dt><dd>{{ job.createdBy }} · {{ job.createdAt|dt }}</dd>
+    <dt>Статус</dt><dd>{{ job.statusLabel }}{% if job.committedAt %} · {{ job.committedAt|dt }}{% endif %}</dd>
+    <dt>Создано</dt><dd>{{ p.created ?? 0 }}</dd>
+    <dt>Обновлено</dt><dd>{{ p.updated ?? 0 }}</dd>
+    <dt>Пропущено</dt><dd>{{ p.skipped ?? 0 }}</dd>
+    <dt>Ошибок записи</dt><dd>{{ p.errors ?? 0 }}</dd>
+    <dt>Создано сотрудников</dt><dd>{{ p.employees_created ?? 0 }}</dd>
+</dl></div>
+<div class="actions no-print"><button class="btn" onclick="print()">Печать</button><a class="btn" href="{{ path('import_index') }}">К списку импортов</a></div>
+<h2>Строки</h2>
+<div class="table-wrap"><table>
+    <thead><tr><th>Стр.</th><th>Инв. номер</th><th>Наименование</th><th>Результат</th><th>Детали</th></tr></thead>
+    {% for r in job.rows %}<tr><td>{{ r.rowNumber }}</td>
+        <td class="mono">{% if r.matchedAssetId and r.outcome in ['created', 'updated'] %}<a href="{{ path('asset_show', {id: r.matchedAssetId}) }}">{{ r.raw.inventory_number ?? '' }}</a>{% else %}{{ r.raw.inventory_number ?? '' }}{% endif %}</td>
+        <td class="small">{{ r.raw.name ?? '' }}</td>
+        <td>{{ badge(r.outcome ?: '—', r.outcome == 'created' ? 'green' : (r.outcome == 'updated' ? 'blue' : (r.outcome == 'error' ? 'red' : 'gray'))) }}</td>
+        <td class="small">{{ r.outcomeMessage }}{% for i in r.issues %}<div class="{{ i.level == 'error' ? 'diff-old' : 'muted' }}">{{ i.message }}</div>{% endfor %}</td></tr>{% endfor %}
+</table></div>
+{% endblock %}

@@ -1,0 +1,108 @@
+{% extends 'base.html.twig' %}
+{% import '_macros.html.twig' as m %}
+{% block title %}{{ c.number }}{% endblock %}
+{% block body %}
+<div class="actions" style="justify-content:space-between;align-items:flex-start">
+    <div><h1 style="margin-bottom:4px">{{ c.number }} — {{ c.name }}</h1>
+        <div>{{ badge(c.status.label, 'blue') }} <span class="muted small">{{ c.basis }} · {{ c.startDate|dt('d.m.Y') }} — {{ c.endDate|dt('d.m.Y') }} · инициатор {{ c.initiator }}</span></div></div>
+    <div class="actions">
+        {% if c.status.acceptsScans %}<a class="btn primary" href="{{ path('inventory_scan', {id: c.id}) }}">USB-сканирование</a><a class="btn" href="{{ path('pwa_app') }}#c={{ c.id }}">Мобильная (offline)</a>{% endif %}
+        <a class="btn" href="{{ path('inventory_report', {id: c.id}) }}">Отчеты</a>
+        {% if can_manage and c.status.value in ['draft', 'preparation'] %}<a class="btn" href="{{ path('inventory_edit', {id: c.id}) }}">Параметры</a>{% endif %}
+    </div>
+</div>
+
+<div class="grid g4" style="margin-top:14px">
+    <div class="panel"><div class="stat">{{ summary.found }} / {{ summary.expected }}</div><div class="stat-label">найдено из ожидаемых</div>
+        <div class="kpi-bar" style="margin-top:6px"><span style="width:{{ summary.progress }}%"></span></div></div>
+    <div class="panel"><div class="stat">{{ summary.scans_total }}</div><div class="stat-label">сканов (в т.ч. повторных: {{ summary.by_result.duplicate ?? 0 }})</div></div>
+    <div class="panel"><div class="stat" style="color:var(--amber)">{{ summary.discrepancies_open }}</div><div class="stat-label">открытых расхождений · решено {{ summary.discrepancies_confirmed + summary.discrepancies_rejected }}</div></div>
+    <div class="panel"><div class="stat" style="color:{{ summary.conflicts ? 'var(--red)' : 'inherit' }}">{{ summary.conflicts }}</div><div class="stat-label">конфликтов синхронизации</div></div>
+</div>
+
+<div class="grid g2">
+    <div class="panel">
+        <h3 style="margin-top:0">Ход кампании</h3>
+        {% set next = c.status.next %}
+        {% if next %}
+        <form method="post" action="{{ path('inventory_status', {id: c.id}) }}" class="actions">
+            {% for s in next %}<button class="btn {{ s.value == 'cancelled' ? 'danger' : 'primary' }}" name="status" value="{{ s.value }}" {% if s.value == 'cancelled' %}data-confirm="Отменить кампанию?"{% endif %}>→ {{ s.label }}</button>{% endfor %}
+            <input type="hidden" name="_token" value="{{ csrf_token('campaign' ~ c.id) }}">
+        </form>
+        <p class="help">«Ожидает проверки» — сканирование завершено, для неотсканированных активов создаются расхождения «Не найден». «Утверждена» — после решения всех расхождений и подтверждения комиссией.</p>
+        {% endif %}
+        <dl class="props small" style="margin-top:10px">
+            <dt>Охват</dt><dd>{% for l in c.locations %}{{ l.pathString }}{{ not loop.last ? '; ' }}{% else %}все локации{% endfor %}</dd>
+            <dt>Категории</dt><dd>{% for t in c.assetTypes %}{{ t }}{{ not loop.last ? ', ' }}{% else %}все{% endfor %}</dd>
+            <dt>Ответственные IT</dt><dd>{% for u in c.itResponsible %}{{ u }}{{ not loop.last ? ', ' }}{% endfor %}</dd>
+        </dl>
+    </div>
+    <div class="panel">
+        <h3 style="margin-top:0">Комиссия</h3>
+        {% for mbr in c.commission %}<p>{{ mbr.user }} {% if mbr.chairman %}<span class="badge blue">председатель</span>{% endif %}
+            {% if mbr.confirmedAt %}<span class="badge green">подтвердил {{ mbr.confirmedAt|dt }}</span>{% else %}<span class="badge gray">не подтвердил</span>{% endif %}
+            {% if mbr.comment %}<div class="small muted">«{{ mbr.comment }}»</div>{% endif %}</p>
+        {% else %}<p class="muted">Комиссия не назначена.</p>{% endfor %}
+        {% if is_member and c.status.value == 'with_commission' %}
+            <form method="post" action="{{ path('inventory_confirm', {id: c.id}) }}">
+                <div class="field"><label>Комментарий к итогам</label><textarea name="comment" rows="2"></textarea></div>
+                <input type="hidden" name="_token" value="{{ csrf_token('campaign' ~ c.id) }}"><button class="btn primary">Подтвердить итоги</button></form>
+        {% endif %}
+        <h3>Итоговые документы</h3>
+        {% for a in acts %}<p><a href="{{ path('inventory_act_pdf', {id: a.id}) }}" target="_blank">{{ a.number }}</a> <span class="small muted">{{ a.createdAt|dt }}</span></p>{% endfor %}
+        {% if c.status.value in ['awaiting_review', 'with_commission', 'approved', 'closed'] %}
+            <form method="post" action="{{ path('inventory_act', {id: c.id}) }}" target="_blank"><input type="hidden" name="_token" value="{{ csrf_token('campaign' ~ c.id) }}">
+                <button class="btn">Сформировать итоговый PDF-акт</button></form>
+        {% endif %}
+    </div>
+</div>
+
+<h2 id="disc">Расхождения</h2>
+<div class="actions" style="margin-bottom:8px">
+    {% for k, l in {'open': 'Открытые', 'confirmed': 'Подтвержденные', 'rejected': 'Отклоненные', 'all': 'Все'} %}<a class="btn small {{ d == k ? 'primary' }}" href="{{ path('inventory_show', {id: c.id, d: k}) }}#disc">{{ l }}</a>{% endfor %}
+</div>
+<div class="table-wrap"><table>
+    <thead><tr><th>Тип</th><th>Актив / код</th><th>Ожидаемое место</th><th>Фактическое место</th><th>Скан</th><th>Комментарий</th><th>Решение</th></tr></thead>
+    {% for x in discrepancies %}
+        <tr><td>{{ badge(x.type.label, x.type.color) }}{% if x.scan and x.scan.syncStatus == 'conflict' %} <span class="badge red">конфликт</span>{% endif %}</td>
+            <td>{% if x.asset %}<a class="mono" href="{{ path('asset_show', {id: x.asset.id}) }}">{{ x.asset.inventoryNumber }}</a><div class="small">{{ x.asset.name }}</div>{% else %}<span class="mono">{{ x.rawCode }}</span>{% endif %}</td>
+            <td class="small">{{ x.expectedLocation ? x.expectedLocation.pathString : '—' }}</td>
+            <td class="small">{{ x.actualLocation ? x.actualLocation.pathString : '—' }}</td>
+            <td class="small">{% if x.scan %}{{ x.scan.scannedAt|dt }}<br>{{ x.scan.scannedByName }} ({{ x.scan.source }}){% endif %}</td>
+            <td class="small">{{ x.comment }}</td>
+            <td class="nowrap">
+                {% if x.open and can_resolve and c.status.value not in ['approved', 'closed', 'cancelled'] %}
+                <form method="post" action="{{ path('inventory_resolve', {id: x.id}) }}">
+                    {% if x.type.value in ['found_other_room', 'found_other_office', 'clarify'] and x.asset %}
+                        <div class="small muted">При подтверждении место актива будет изменено{{ x.actualLocation ? ' на «' ~ x.actualLocation.name ~ '»' : '' }}</div>
+                    {% elseif x.type.value == 'not_found' %}<div class="small muted">Подтверждение → статус «Не найдено»</div>
+                    {% elseif x.type.value == 'damaged' %}<div class="small muted">Подтверждение → статус «Повреждено»</div>{% endif %}
+                    <input type="text" name="comment" placeholder="Комментарий" style="margin:4px 0">
+                    <input type="hidden" name="_token" value="{{ csrf_token('campaign' ~ c.id) }}">
+                    <button class="btn small primary" name="decision" value="confirm">Подтвердить</button>
+                    <button class="btn small" name="decision" value="reject">Отклонить</button>
+                </form>
+                {% else %}{{ badge(x.statusLabel, x.status == 'confirmed' ? 'green' : (x.status == 'rejected' ? 'gray' : 'amber')) }}<div class="small muted">{{ x.resolvedBy }} {{ x.resolvedAt ? x.resolvedAt|dt }}</div>{% endif %}
+            </td></tr>
+    {% else %}<tr><td colspan="7" class="muted">Нет расхождений</td></tr>{% endfor %}
+</table></div>
+
+{% if can_resolve and c.status.value in ['started', 'in_progress', 'awaiting_review'] %}
+<details class="panel" style="margin-top:12px"><summary>Ручная отметка (без скана)</summary>
+    <form method="post" action="{{ path('inventory_mark', {id: c.id}) }}" class="actions" style="margin-top:8px">
+        <input type="text" name="code" placeholder="Инв. номер" required style="max-width:200px" class="mono">
+        <select name="type" style="width:auto"><option value="not_found">Не найден</option><option value="damaged">Поврежден</option><option value="clarify">Требуется уточнение</option></select>
+        <input type="text" name="comment" placeholder="Комментарий" style="max-width:300px">
+        <input type="hidden" name="_token" value="{{ csrf_token('campaign' ~ c.id) }}"><button class="btn">Отметить</button></form>
+</details>
+{% endif %}
+
+<h2>Последние сканы</h2>
+<div class="table-wrap"><table>
+    <thead><tr><th>Время</th><th>Код</th><th>Результат</th><th>Помещение</th><th>Кто</th><th>Источник</th><th>Синхр.</th></tr></thead>
+    {% for s in recent_scans %}<tr><td class="small nowrap">{{ s.scannedAt|dt('d.m.Y H:i:s') }}</td><td class="mono">{{ s.rawCode }}</td><td>{{ badge(s.result.label, s.result.color) }}</td>
+        <td class="small">{{ s.location ? s.location.pathString : '—' }}</td><td class="small">{{ s.scannedByName }}</td><td class="small">{{ s.source }}</td>
+        <td>{{ badge(s.syncStatus, s.syncStatus == 'synced' ? 'green' : 'red') }}</td></tr>
+    {% else %}<tr><td colspan="7" class="muted">Сканов пока нет</td></tr>{% endfor %}
+</table></div>
+{% endblock %}

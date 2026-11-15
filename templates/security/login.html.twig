@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Вход — Учет оборудования</title>
+    <link rel="stylesheet" href="{{ asset('css/app.css') }}">
+    <link rel="manifest" href="/manifest.webmanifest">
+</head>
+<body>
+<div class="login-wrap">
+    <form class="login-box" method="post" action="{{ path('app_login') }}">
+        <h1 style="margin-bottom:4px">Учет оборудования</h1>
+        <p class="muted" style="margin-top:0">{{ org_name }}</p>
+        {% if expired %}<div class="flash warning">Сессия завершена из-за бездействия. Войдите снова.</div>{% endif %}
+        {% if error %}<div class="flash error">{{ error.messageKey|trans(error.messageData, 'security') }}</div>{% endif %}
+        <div class="field"><label for="u">Логин</label><input type="text" id="u" name="_username" value="{{ last_username }}" autocomplete="username" required autofocus></div>
+        <div class="field"><label for="p">Пароль</label><input type="password" id="p" name="_password" autocomplete="current-password" required></div>
+        <input type="hidden" name="_csrf_token" value="{{ csrf_token('authenticate') }}">
+        <button class="btn primary" style="width:100%">Войти</button>
+        <p class="small muted" style="margin-bottom:0">Доступ только из корпоративной сети. Вход по Microsoft Entra ID будет добавлен на следующем этапе.</p>
+    </form>
+</div>
+</body>
+</html>

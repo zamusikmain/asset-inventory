@@ -1,0 +1,58 @@
+{% extends 'base.html.twig' %}
+{% block title %}Сканирование {{ c.number }}{% endblock %}
+{% block body %}
+<h1>Сканирование: {{ c.number }} — {{ c.name }}</h1>
+<div class="grid g2">
+    <div class="panel">
+        <div class="field"><label>Помещение, в котором проводится проверка</label>
+            <select id="room"><option value="">— без привязки (только проверка наличия) —</option>
+                {% for r in rooms %}<option value="{{ r.id }}">{{ r.name }}</option>{% endfor %}</select></div>
+        <div class="field"><label>Отметка для следующего скана</label>
+            <div class="actions">
+                <label style="font-weight:normal"><input type="radio" name="flag" value="" checked> нет</label>
+                <label style="font-weight:normal"><input type="radio" name="flag" value="damaged"> поврежден</label>
+                <label style="font-weight:normal"><input type="radio" name="flag" value="label_damaged"> этикетка повреждена</label>
+                <label style="font-weight:normal"><input type="radio" name="flag" value="clarify"> требует уточнения</label>
+            </div></div>
+        <div class="field"><label>Сканируйте Code 128 (Mulex ScanFlex 2D, режим клавиатуры)</label>
+            <input type="text" id="scan" class="scan-box" autocomplete="off" placeholder="Ожидание сканирования…"></div>
+        <div id="result"></div>
+        <p class="help">Фокус автоматически возвращается в поле сканирования. Повторный скан в этой кампании блокируется с указанием времени и пользователя первого сканирования.</p>
+    </div>
+    <div class="panel">
+        <div class="actions" style="justify-content:space-between"><h3 style="margin:0">Журнал сессии</h3><span id="counter" class="muted small"></span></div>
+        <div class="scan-log"><table><tbody id="log"></tbody></table></div>
+    </div>
+</div>
+<audio id="ok" src="data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA="></audio>
+{% endblock %}
+{% block scripts %}
+<script>
+const log = document.getElementById('log'), result = document.getElementById('result'), counter = document.getElementById('counter');
+const room = document.getElementById('room');
+room.value = localStorage.getItem('scan-room-{{ c.id }}') || '';
+room.addEventListener('change', () => { localStorage.setItem('scan-room-{{ c.id }}', room.value); document.getElementById('scan').focus(); });
+let n = 0;
+function beep(ok) {
+  try { const ctx = new (window.AudioContext || window.webkitAudioContext)(); const o = ctx.createOscillator(); o.frequency.value = ok ? 880 : 220; o.connect(ctx.destination); o.start(); o.stop(ctx.currentTime + (ok ? 0.08 : 0.3)); } catch (e) {}
+}
+App.bindScanner(document.getElementById('scan'), async code => {
+  const flagEl = document.querySelector('input[name=flag]:checked');
+  const body = {code, location_id: room.value || null, flag: flagEl.value || null, source: 'usb', op_id: crypto.randomUUID ? crypto.randomUUID() : undefined};
+  try {
+    const r = await App.api('{{ path('api_campaign_scan', {id: c.id}) }}', {method: 'POST', body: JSON.stringify(body)});
+    const a = r.asset;
+    result.innerHTML = `<div class="scan-result ${r.color}"><b>${App.esc(r.result_label)}</b> — <span class="mono">${App.esc(r.code)}</span>
+      ${a ? `<div>${App.esc(a.name)}${a.employee ? ' · ' + App.esc(a.employee.name) : ''}</div>` : ''}
+      ${r.result !== 'found_expected' && r.expected_location ? `<div class="small">Ожидаемое место: ${App.esc(r.expected_location)}</div>` : ''}
+      ${r.duplicate_of ? `<div class="small">${App.esc(r.message)}</div>` : ''}</div>`;
+    log.insertAdjacentHTML('afterbegin', `<tr><td class="small nowrap">${new Date().toLocaleTimeString()}</td><td class="mono">${App.esc(r.code)}</td><td><span class="badge ${r.color}">${App.esc(r.result_label)}</span></td><td class="small">${a ? App.esc(a.name) : ''}</td></tr>`);
+    counter.textContent = 'сканов: ' + (++n);
+    beep(r.result === 'found_expected');
+    flagEl.checked = false; document.querySelector('input[name=flag][value=""]').checked = true;
+  } catch (err) {
+    result.innerHTML = `<div class="scan-result red">${App.esc(err.message)}</div>`; beep(false);
+  }
+});
+</script>
+{% endblock %}

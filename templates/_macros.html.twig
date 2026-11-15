@@ -1,0 +1,26 @@
+{% macro pager(p, route, params) %}
+    {% if p.pages > 1 %}
+        <div class="pager">
+            {% set from = max(1, p.page - 4) %}{% set to = min(p.pages, p.page + 4) %}
+            {% if p.page > 1 %}<a href="{{ path(route, params|merge({page: p.page - 1})) }}">←</a>{% endif %}
+            {% if from > 1 %}<a href="{{ path(route, params|merge({page: 1})) }}">1</a><span>…</span>{% endif %}
+            {% for i in from..to %}
+                {% if i == p.page %}<span class="cur">{{ i }}</span>{% else %}<a href="{{ path(route, params|merge({page: i})) }}">{{ i }}</a>{% endif %}
+            {% endfor %}
+            {% if to < p.pages %}<span>…</span><a href="{{ path(route, params|merge({page: p.pages})) }}">{{ p.pages }}</a>{% endif %}
+            {% if p.page < p.pages %}<a href="{{ path(route, params|merge({page: p.page + 1})) }}">→</a>{% endif %}
+            <span class="muted" style="border:none;background:none">Всего: {{ p.total }}</span>
+        </div>
+    {% else %}
+        <div class="pager"><span class="muted" style="border:none;background:none">Всего: {{ p.total }}</span></div>
+    {% endif %}
+{% endmacro %}
+
+{% macro location_select(name, tree, selected, empty_label) %}
+    <select name="{{ name }}">
+        <option value="">{{ empty_label|default('— не указано —') }}</option>
+        {% for t in tree %}
+            <option value="{{ t.node.id }}" {{ selected == t.node.id ? 'selected' }}>{{ '— '|repeat(t.depth) }}{{ t.node.name }} ({{ t.node.type.label }})</option>
+        {% endfor %}
+    </select>
+{% endmacro %}

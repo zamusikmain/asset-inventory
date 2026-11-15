@@ -1,0 +1,17 @@
+{% extends 'base.html.twig' %}
+{% import '_macros.html.twig' as m %}
+{% block title %}Уведомления{% endblock %}
+{% block body %}
+<h1>Уведомления сотрудникам</h1>
+<div class="actions" style="margin-bottom:10px">{% for k, l in {'': 'Все', 'queued': 'В очереди', 'sent': 'Отправлены', 'failed': 'Ошибки', 'skipped': 'Пропущены'} %}
+    <a class="btn small {{ status == k ? 'primary' }}" href="{{ path('admin_notifications', {status: k}) }}">{{ l }}</a>{% endfor %}</div>
+<div class="table-wrap"><table>
+    <thead><tr><th>Создано</th><th>Сотрудник</th><th>Адрес</th><th>Тема</th><th>Статус</th><th>Попыток</th><th>Ошибка</th><th></th></tr></thead>
+    {% for n in pager %}<tr><td class="small nowrap">{{ n.createdAt|dt }}</td><td>{{ n.employee ? n.employee.name }}</td><td class="small">{{ n.recipient }}</td><td class="small">{{ n.subject }}</td>
+        <td>{{ badge(n.status, n.status == 'sent' ? 'green' : (n.status == 'failed' ? 'red' : 'gray')) }}{% if n.sentAt %}<div class="small muted">{{ n.sentAt|dt }}</div>{% endif %}</td>
+        <td>{{ n.attempts }}</td><td class="small">{{ n.error }}</td>
+        <td>{% if n.status in ['failed', 'queued'] and n.recipient %}<form method="post" action="{{ path('admin_notification_resend', {id: n.id}) }}"><input type="hidden" name="_token" value="{{ csrf_token('resend' ~ n.id) }}"><button class="btn small">Повторить</button></form>{% endif %}</td></tr>
+    {% else %}<tr><td colspan="8" class="muted">Нет уведомлений</td></tr>{% endfor %}
+</table></div>
+{{ m.pager(pager, 'admin_notifications', {status: status}) }}
+{% endblock %}

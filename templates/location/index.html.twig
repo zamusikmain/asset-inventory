@@ -1,0 +1,59 @@
+{% extends 'base.html.twig' %}
+{% block title %}Локации{% endblock %}
+{% block body %}
+<div class="actions" style="justify-content:space-between"><h1>Локации и планы офисов</h1>
+    {% if is_granted('ROLE_IT') %}<button class="btn primary" data-modal="loc-modal" onclick="editLoc(null)">+ Добавить</button>{% endif %}</div>
+<p class="muted small">Иерархия: страна → город → бизнес-центр → офис → этаж → помещение. Фактическое расположение актива — поле помещения в карточке.</p>
+<div class="table-wrap"><table>
+    <thead><tr><th>Название</th><th>Тип</th><th>Код</th><th class="right">Активов</th><th>Планы</th><th></th></tr></thead>
+    {% for t in tree %}{% set n = t.node %}
+        <tr class="tree-row" id="loc{{ n.id }}" {% if not n.active %}style="opacity:.5"{% endif %}>
+            <td style="padding-left:{{ 10 + t.depth * 22 }}px"><a href="{{ path('location_show', {id: n.id}) }}">{{ n.name }}</a></td>
+            <td class="small">{{ n.type.label }}{% if n.roomType %} · {{ n.roomType.label }}{% endif %}</td>
+            <td class="small mono">{{ n.code }}</td>
+            <td class="right">{{ counts[n.id] ?? '' }}</td>
+            <td class="small">{% for p in plans[n.id] ?? [] %}<a href="{{ path('plan_show', {id: p.id}) }}">{{ p.name }}</a> {% endfor %}</td>
+            <td class="nowrap">{% if is_granted('ROLE_IT') %}
+                <button class="btn small" onclick='editLoc({{ {id: n.id, name: n.name, type: n.type.value, code: n.code, parent: n.parent ? n.parent.id : null, room_type: n.roomType ? n.roomType.value : null, active: n.active}|json_encode|raw }})'>Изм.</button>
+                {% if n.type.childTypes %}<button class="btn small" onclick='editLoc({parent: {{ n.id }}, type: "{{ n.type.childTypes|first.value }}"})'>+ вложенный</button>{% endif %}
+            {% endif %}
+            {% if is_granted('ROLE_ADMIN') %}<form method="post" action="{{ path('location_delete', {id: n.id}) }}" class="inline-form" data-confirm="Удалить локацию «{{ n.name }}»{{ plans[n.id] is defined ? ' вместе с планами' }}?">
+                <input type="hidden" name="_token" value="{{ csrf_token('location_delete' ~ n.id) }}"><button class="btn small danger">Удал.</button></form>{% endif %}</td>
+        </tr>
+    {% else %}<tr><td colspan="6" class="muted">Справочник пуст. Добавьте страну или город.</td></tr>{% endfor %}
+</table></div>
+
+{% if is_granted('ROLE_IT') %}
+<div class="modal" id="loc-modal"><div class="box">
+    <h2 style="margin-top:0" id="loc-title">Локация</h2>
+    <form method="post" action="{{ path('location_save') }}">
+        <input type="hidden" name="id" id="l-id">
+        <div class="field"><label>Родитель</label><select name="parent" id="l-parent"><option value="">— корень —</option>
+            {% for t in tree %}<option value="{{ t.node.id }}">{{ '— '|repeat(t.depth) }}{{ t.node.name }} ({{ t.node.type.label }})</option>{% endfor %}</select></div>
+        <div class="field"><label>Тип</label><select name="type" id="l-type">
+            {% for l, v in {'Страна': 'country', 'Город': 'city', 'Бизнес-центр': 'business_center', 'Офис': 'office', 'Этаж': 'floor', 'Помещение': 'room'} %}<option value="{{ v }}">{{ l }}</option>{% endfor %}</select></div>
+        <div class="field" id="rt-field"><label>Тип помещения</label><select name="room_type" id="l-rt">
+            {% for l, v in {'Кабинет': 'cabinet', 'Склад': 'warehouse', 'Серверная': 'server', 'Техническое помещение': 'technical', 'Переговорная': 'meeting', 'Другое': 'other'} %}<option value="{{ v }}">{{ l }}</option>{% endfor %}</select></div>
+        <div class="field"><label>Название</label><input type="text" name="name" id="l-name" required></div>
+        <div class="field"><label>Код (для сопоставления при импорте)</label><input type="text" name="code" id="l-code"></div>
+        <div class="field"><label style="font-weight:normal"><input type="checkbox" name="inactive" id="l-inactive"> неактивна</label></div>
+        <input type="hidden" name="_token" value="{{ csrf_token('location_save') }}">
+        <div class="actions"><button class="btn primary">Сохранить</button><button type="button" class="btn" data-close>Отмена</button></div>
+    </form>
+</div></div>
+{% endif %}
+{% endblock %}
+{% block scripts %}
+<script>
+const $ = id => document.getElementById(id);
+function syncRt() { $('rt-field').style.display = $('l-type').value === 'room' ? '' : 'none'; }
+$('l-type')?.addEventListener('change', syncRt);
+function editLoc(d) {
+  d = d || {};
+  $('l-id').value = d.id || ''; $('l-name').value = d.name || ''; $('l-code').value = d.code || '';
+  $('l-parent').value = d.parent || ''; $('l-type').value = d.type || 'city'; $('l-rt').value = d.room_type || 'cabinet';
+  $('l-inactive').checked = d.active === false; $('loc-title').textContent = d.id ? 'Изменение: ' + d.name : 'Новая локация';
+  syncRt(); App.modal('loc-modal');
+}
+</script>
+{% endblock %}

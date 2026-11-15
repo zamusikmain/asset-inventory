@@ -1,0 +1,20 @@
+{% extends 'base.html.twig' %}
+{% import '_macros.html.twig' as m %}
+{% block title %}Интеграции{% endblock %}
+{% block body %}
+<h1>Интеграции: 1С и Microsoft Entra ID</h1>
+<div class="panel small">
+    <p><b>Статус:</b> модуль обмена с 1С {{ enabled ? 'включен' : 'отключен (INTEGRATION_1C_ENABLED=0)' }}. Недоступность 1С не блокирует работу системы: события копятся в очереди (outbox) и доставляются командой <code>app:integration:process</code>.</p>
+    <p>Распределение источников истины: 1С — бухгалтерские данные (стоимость, остаточная стоимость, даты постановки и списания, бухгалтерский номер и статус); система учета — фактический пользователь, местоположение, техническое состояние, инвентаризация и IT-история.</p>
+    <p>Формат обмена (HTTP-сервис, REST, OData или файлы) определяется после уточнения конфигурации 1С. Сейчас реализован файловый коннектор и API выгрузки <code>GET /api/v1/integration/1c/assets?since=</code>.</p>
+    <p>Entra ID / Graph: в моделях сотрудника и пользователя хранятся UUID, Entra Object ID, UPN, email, источник и дата синхронизации; SSO по OpenID Connect подключается после регистрации приложения.</p>
+</div>
+<div class="table-wrap"><table>
+    <thead><tr><th>#</th><th>Создано</th><th>Система</th><th>Событие</th><th>Объект</th><th>Статус</th><th>Попыток</th><th>Ошибка</th></tr></thead>
+    {% for e in pager %}<tr><td>{{ e.id }}</td><td class="small">{{ e.createdAt|dt }}</td><td>{{ e.system }} {{ e.direction }}</td><td class="mono small">{{ e.eventType }}</td>
+        <td class="small">{{ e.entityType }} {{ e.entityId|slice(0, 8) }}</td><td>{{ badge(e.status, e.status == 'sent' ? 'green' : (e.status == 'failed' ? 'red' : 'gray')) }}</td>
+        <td>{{ e.attempts }}</td><td class="small">{{ e.error }}</td></tr>
+    {% else %}<tr><td colspan="8" class="muted">Событий нет</td></tr>{% endfor %}
+</table></div>
+{{ m.pager(pager, 'admin_integrations', {}) }}
+{% endblock %}

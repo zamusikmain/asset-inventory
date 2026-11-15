@@ -1,0 +1,55 @@
+{% extends 'base.html.twig' %}
+{% block title %}{{ license }}{% endblock %}
+{% block body %}
+<div class="actions" style="justify-content:space-between"><h1>{{ license.vendor }} {{ license.product }}</h1>
+    <a class="btn" href="{{ path('license_edit', {id: license.id}) }}">Редактировать</a></div>
+<div class="grid g2">
+    <div class="panel"><dl class="props">
+        <dt>Тип</dt><dd>{{ license.licenseTypeLabel }}</dd>
+        <dt>Договор</dt><dd>{{ license.contract ?: '—' }}</dd>
+        <dt>ID подписки</dt><dd class="mono small">{{ license.subscriptionId ?: '—' }}</dd>
+        <dt>Мест</dt><dd>занято {{ license.seatsUsed }} из {{ license.seatsTotal }} (свободно {{ license.seatsFree }})</dd>
+        <dt>Срок действия</dt><dd>{{ license.validFrom|dt('d.m.Y') }} — {{ license.validUntil|dt('d.m.Y') }} {{ badge(license.effectiveStatusLabel, license.effectiveStatus == 'active' ? 'green' : 'amber') }}</dd>
+        <dt>Стоимость</dt><dd>{{ license.cost ? license.cost ~ ' ' ~ license.currency : '—' }}</dd>
+        <dt>Поставщик</dt><dd>{{ license.supplier ?: '—' }}</dd>
+        <dt>Ответственный</dt><dd>{{ license.responsible ? license.responsible.name : '—' }}</dd>
+        <dt>Подразделение</dt><dd>{{ license.department ?: '—' }}</dd>
+        <dt>Примечание</dt><dd>{{ license.comment|nl2br }}</dd>
+    </dl></div>
+    <div class="panel">
+        <h3 style="margin-top:0">Секретный ключ</h3>
+        {% if not vault_enabled %}<p class="muted small">Хранение ключей отключено: не настроен ключ шифрования (SECRETS_KEY_FILE).</p>
+        {% elseif is_granted('ROLE_SECRET_VIEWER') %}
+            <p>{{ license.hasSecretKey ? '🔑 ключ сохранен (зашифрован)' : 'ключ не сохранен' }}</p>
+            {% if license.hasSecretKey %}
+            <form method="post" action="{{ path('license_secret_reveal', {id: license.id}) }}" target="_blank" class="actions">
+                <input type="text" name="reason" placeholder="Основание" required style="max-width:200px"><input type="password" name="password" placeholder="Ваш пароль" required style="max-width:160px" autocomplete="current-password">
+                <input type="hidden" name="_token" value="{{ csrf_token('licsecret' ~ license.id) }}"><button class="btn">Показать</button></form>
+            {% endif %}
+            <form method="post" action="{{ path('license_secret_set', {id: license.id}) }}" class="actions" style="margin-top:8px" data-confirm="Сохранить/удалить ключ?">
+                <input type="password" name="value" placeholder="Новое значение (пусто — удалить)" autocomplete="off" style="max-width:300px">
+                <input type="hidden" name="_token" value="{{ csrf_token('licsecret' ~ license.id) }}"><button class="btn">Сохранить</button></form>
+        {% else %}<p class="muted small">Нет доступа к секретам.</p>{% endif %}
+    </div>
+</div>
+<h2>Назначения ({{ license.activeAssignments|length }})</h2>
+<div class="table-wrap"><table>
+    <thead><tr><th>Сотрудник</th><th>Оборудование</th><th>С</th><th></th></tr></thead>
+    {% for a in license.activeAssignments %}<tr><td>{{ a.employee ? a.employee.name : '—' }}</td><td class="mono">{{ a.asset ? a.asset.inventoryNumber : '—' }}</td><td class="small">{{ a.assignedAt|dt('d.m.Y') }}</td>
+        <td><form method="post" action="{{ path('license_revoke', {id: a.id}) }}" class="inline-form"><input type="hidden" name="_token" value="{{ csrf_token('licrev' ~ a.id) }}"><button class="btn small">Отозвать</button></form></td></tr>
+    {% else %}<tr><td colspan="4" class="muted">Нет назначений</td></tr>{% endfor %}
+</table></div>
+<form method="post" action="{{ path('license_assign', {id: license.id}) }}" class="panel actions" style="margin-top:10px">
+    <select name="employee" style="max-width:300px"><option value="">— сотрудник —</option>{% for e in employees %}<option value="{{ e.id }}">{{ e.name }}</option>{% endfor %}</select>
+    <input type="text" name="asset_code" placeholder="и/или инв. номер оборудования" style="max-width:240px">
+    <input type="hidden" name="_token" value="{{ csrf_token('lic' ~ license.id) }}"><button class="btn primary">Назначить</button>
+</form>
+<h2>Документы</h2>
+<div class="panel">
+    {% for d in documents %}<p><a href="{{ path('document_download', {id: d.id}) }}" target="_blank">{{ d.originalName }}</a> {{ badge(d.categoryLabel) }} <span class="small muted">{{ d.size|filesize }}</span></p>{% else %}<p class="muted">Нет документов</p>{% endfor %}
+    <form method="post" enctype="multipart/form-data" action="{{ path('license_document_upload', {id: license.id}) }}" class="actions">
+        <input type="file" name="file" accept=".pdf,.jpg,.jpeg,.png,.docx,.xlsx" required>
+        <select name="category" style="width:auto">{% for l, v in doc_categories %}<option value="{{ v }}">{{ l }}</option>{% endfor %}</select>
+        <input type="hidden" name="_token" value="{{ csrf_token('lic' ~ license.id) }}"><button class="btn">Загрузить</button></form>
+</div>
+{% endblock %}

@@ -1,0 +1,30 @@
+{% extends 'base.html.twig' %}
+{% block title %}Сканирование{% endblock %}
+{% block body %}
+<h1>Поиск по штрихкоду</h1>
+<div class="grid g2">
+    <div class="panel">
+        <div class="field"><label>Сканируйте Code 128 или введите инвентарный номер + Enter</label>
+            <input type="text" id="scan" class="scan-box" autocomplete="off" placeholder="Ожидание сканирования…"></div>
+        <div id="result"></div>
+        <p class="help">Сканер Mulex ScanFlex 2D работает в режиме клавиатуры; фокус удерживается в поле автоматически. Для инвентаризации откройте кампанию.</p>
+    </div>
+    <div class="panel"><h3 style="margin-top:0">История</h3><table><tbody id="log"></tbody></table></div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+const result = document.getElementById('result'), log = document.getElementById('log');
+const colors = {found: 'green', not_found: 'red', written_off: 'gray', invalid_code: 'red'};
+App.bindScanner(document.getElementById('scan'), async code => {
+  const t0 = performance.now();
+  const r = await App.api('{{ path('api_lookup') }}?code=' + encodeURIComponent(code));
+  const ms = Math.round(performance.now() - t0), a = r.asset;
+  result.innerHTML = `<div class="scan-result ${colors[r.result]}"><b>${App.esc(r.message)}</b> — <span class="mono">${App.esc(r.code)}</span> <span class="small muted">(${ms} мс)</span>
+    ${a ? `<div style="margin-top:6px"><a href="${r.url}">${App.esc(a.name)}</a> · ${App.esc(a.status_label)}</div>
+      <div class="small">${a.employee ? 'Сотрудник: ' + App.esc(a.employee.name) + '<br>' : ''}${a.location ? 'Место: ' + App.esc(a.location.path) : ''}</div>` : ''}
+    ${r.result === 'not_found' && {{ is_granted('ROLE_IT') ? 'true' : 'false' }} ? `<div style="margin-top:6px"><a class="btn small" href="{{ path('asset_new') }}?inv=${encodeURIComponent(r.code)}">Создать карточку</a></div>` : ''}</div>`;
+  log.insertAdjacentHTML('afterbegin', `<tr><td class="small">${new Date().toLocaleTimeString()}</td><td class="mono">${App.esc(r.code)}</td><td><span class="badge ${colors[r.result]}">${App.esc(r.message)}</span></td></tr>`);
+});
+</script>
+{% endblock %}

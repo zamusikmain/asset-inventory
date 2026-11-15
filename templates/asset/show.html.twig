@@ -1,0 +1,159 @@
+{% extends 'base.html.twig' %}
+{% import '_macros.html.twig' as m %}
+{% block title %}{{ asset.inventoryNumber }}{% endblock %}
+{% block body %}
+<div class="actions" style="justify-content:space-between;align-items:flex-start">
+    <div>
+        <h1 style="margin-bottom:4px"><span class="mono">{{ asset.inventoryNumber }}</span> — {{ asset.name }}</h1>
+        <div>{{ asset.status|status_badge }} {% if asset.archived %}{{ badge('Архивная запись', 'gray') }}{% endif %}
+            {% if asset.bundle %}<a href="{{ path('bundle_show', {id: asset.bundle.id}) }}">{{ badge('Комплект: ' ~ asset.bundle.name, 'blue') }}</a>{% endif %}</div>
+    </div>
+    {% if is_granted('ROLE_IT') %}
+    <div class="actions no-print">
+        <a class="btn" href="{{ path('asset_edit', {id: asset.id}) }}">Редактировать</a>
+        {% if not asset.employee and not asset.status.terminal %}<a class="btn primary" href="{{ path('handover_issue', {asset: asset.id}) }}">Выдать</a>{% endif %}
+        {% if asset.employee %}<a class="btn" href="{{ path('handover_return', {employee: asset.employee.id, asset: asset.id}) }}">Оформить возврат</a>{% endif %}
+        <a class="btn" href="#" data-modal="status-modal">Статус</a>
+        <a class="btn" href="#" data-modal="move-modal">Переместить</a>
+        <a class="btn" href="{{ path('asset_label', {id: asset.id}) }}" target="_blank">Этикетка</a>
+    </div>
+    {% endif %}
+</div>
+
+<div class="grid g2" style="margin-top:14px">
+    <div class="panel">
+        <dl class="props">
+            <dt>Инвентарный номер</dt><dd class="mono">{{ asset.inventoryNumber }}</dd>
+            <dt>Полный инв. номер</dt><dd>{{ asset.fullInventoryNumber ?: '—' }}</dd>
+            <dt>Штрихкод (Code 128)</dt><dd><img src="{{ path('asset_barcode_svg', {code: asset.barcode}) }}" alt="{{ asset.barcode }}" style="height:42px"><div class="mono small">{{ asset.barcode }}</div></dd>
+            <dt>Тип / категория</dt><dd>{{ asset.type ?: '—' }}</dd>
+            <dt>Производитель / модель</dt><dd>{{ asset.manufacturer ?: '—' }} {{ asset.model }}</dd>
+            <dt>Серийный номер</dt><dd class="mono">{{ asset.serialNumber ?: '—' }}</dd>
+            <dt>Состояние</dt><dd>{{ asset.conditionLabel ?: '—' }}</dd>
+            {% for v in asset.attributeValues %}<dt>{{ v.definition.label }}</dt><dd>{{ v.displayValue }}</dd>{% endfor %}
+            <dt>Примечание</dt><dd>{{ asset.comment|nl2br ?: '—' }}</dd>
+            <dt>Дата исходной записи</dt><dd>{{ asset.sourceDate|dt('d.m.Y') }}</dd>
+            <dt>Создано / изменено</dt><dd class="small">{{ asset.createdAt|dt }} / {{ asset.updatedAt|dt }}</dd>
+        </dl>
+    </div>
+    <div>
+        <div class="panel">
+            <dl class="props">
+                <dt>Сотрудник</dt><dd>{% if asset.employee %}<a href="{{ is_granted('ROLE_IT') ? path('employee_show', {id: asset.employee.id}) : '#' }}">{{ asset.employee.name }}</a><div class="small muted">{{ asset.employee.position }}</div>{% else %}—{% endif %}</dd>
+                <dt>Город</dt><dd>{{ asset.city ? asset.city.name : '—' }}</dd>
+                <dt>Офис</dt><dd>{{ asset.office ? asset.office.name : '—' }}</dd>
+                <dt>Этаж</dt><dd>{{ asset.floor ? asset.floor.name : '—' }}</dd>
+                <dt>Помещение</dt><dd>{% if asset.room %}<a href="{{ path('location_show', {id: asset.room.id}) }}">{{ asset.room.name }}</a> <span class="small muted">{{ asset.room.roomType ? asset.room.roomType.label }}</span>{% else %}{{ asset.location ? asset.location.pathString : '—' }}{% endif %}</dd>
+            </dl>
+        </div>
+        <div class="panel">
+            <h3 style="margin-top:0">BitLocker / FileVault</h3>
+            <dl class="props">
+                <dt>Recovery key</dt><dd>{{ asset.hasRecoveryKey ? 'есть' : 'нет данных' }}</dd>
+                <dt>Где хранится</dt><dd>{{ asset.recoveryKeyStorage ?: '—' }}</dd>
+                <dt>ID устройства</dt><dd class="mono small">{{ asset.recoveryKeyDeviceId ?: '—' }}</dd>
+                <dt>Проверено</dt><dd>{{ asset.recoveryKeyCheckedAt|dt('d.m.Y') }}</dd>
+            </dl>
+            {% if vault_enabled and is_granted('ROLE_SECRET_VIEWER') %}
+                <details style="margin-top:10px"><summary>Зашифрованное значение {{ has_secret ? '(сохранено)' : '(нет)' }}</summary>
+                    {% if has_secret %}
+                    <form method="post" action="{{ path('asset_secret_reveal', {id: asset.id}) }}" target="_blank" class="panel" style="margin-top:8px">
+                        <p class="small muted">Каждый просмотр фиксируется в журнале аудита. Экспорт запрещен.</p>
+                        <div class="field"><label>Основание просмотра</label><input type="text" name="reason" required></div>
+                        <div class="field"><label>Подтвердите паролем</label><input type="password" name="password" required autocomplete="current-password"></div>
+                        <input type="hidden" name="_token" value="{{ csrf_token('asset_secret' ~ asset.id) }}"><button class="btn">Показать</button>
+                    </form>
+                    {% endif %}
+                    <form method="post" action="{{ path('asset_secret_set', {id: asset.id}) }}" class="panel" data-confirm="Сохранить/удалить значение ключа?">
+                        <div class="field"><label>Новое значение (пусто — удалить)</label><input type="password" name="value" autocomplete="off"></div>
+                        <input type="hidden" name="_token" value="{{ csrf_token('asset_secret' ~ asset.id) }}"><button class="btn">Сохранить</button>
+                    </form>
+                </details>
+            {% endif %}
+        </div>
+        {% if licenses %}
+        <div class="panel"><h3 style="margin-top:0">Лицензии на устройстве</h3>
+            {% for la in licenses %}<p><a href="{{ path('license_show', {id: la.license.id}) }}">{{ la.license }}</a></p>{% endfor %}</div>
+        {% endif %}
+    </div>
+</div>
+
+<h2>История (статус, сотрудник, местоположение)</h2>
+<div class="table-wrap"><table>
+    <thead><tr><th>Дата</th><th>Операция</th><th>Статус</th><th>Сотрудник</th><th>Местоположение</th><th>Кто</th><th>Комментарий / документ</th></tr></thead>
+    <tbody>
+    {% for h in history %}
+        <tr>
+            <td class="nowrap small">{{ h.performedAt|dt }}</td>
+            <td>{{ h.typeLabel }}<div class="small muted">{{ h.source }}</div></td>
+            <td>{% if h.hasStatusChange %}{{ h.fromStatus ? h.fromStatus.label : '—' }} → <b>{{ h.toStatus.label }}</b>{% else %}<span class="muted">{{ h.toStatus ? h.toStatus.label }}</span>{% endif %}</td>
+            <td>{% if h.hasEmployeeChange %}{{ h.fromEmployeeName ?: '—' }} → <b>{{ h.toEmployeeName ?: '—' }}</b>{% else %}<span class="muted">{{ h.toEmployeeName }}</span>{% endif %}</td>
+            <td class="small">{% if h.hasLocationChange %}{{ h.fromLocationName ?: '—' }} → <b>{{ h.toLocationName ?: '—' }}</b>{% else %}<span class="muted">{{ h.toLocationName }}</span>{% endif %}</td>
+            <td class="small">{{ h.performedByName ?: 'система' }}</td>
+            <td class="small">{{ h.comment }}{% if h.document %}<div><a href="{{ path('handover_document', {id: h.document.id}) }}">{{ h.document.number }}</a></div>{% endif %}</td>
+        </tr>
+    {% else %}<tr><td colspan="7" class="muted">Нет записей</td></tr>{% endfor %}
+    </tbody>
+</table></div>
+
+<h2 id="documents">Вложения</h2>
+<div class="panel">
+    {% for d in documents %}
+        <div class="actions" style="margin-bottom:6px">
+            <a href="{{ path('document_download', {id: d.id}) }}" target="_blank">{{ d.originalName }}</a>
+            {{ badge(d.categoryLabel, 'gray') }} <span class="small muted">{{ d.size|filesize }} · {{ d.uploadedAt|dt }} · {{ d.uploadedBy ?: '' }}</span>
+            {% if is_granted('ROLE_ADMIN') %}
+                <form method="post" action="{{ path('document_delete', {id: d.id}) }}" class="inline-form" data-confirm="Удалить файл?">
+                    <input type="hidden" name="_token" value="{{ csrf_token('doc_delete' ~ d.id) }}"><button class="btn small danger">Удалить</button></form>
+            {% endif %}
+        </div>
+    {% else %}<p class="muted">Нет вложений.</p>{% endfor %}
+    {% if is_granted('ROLE_IT') %}
+    <form method="post" enctype="multipart/form-data" action="{{ path('asset_document_upload', {id: asset.id}) }}" class="actions" style="margin-top:10px">
+        <input type="file" name="file" accept=".pdf,.jpg,.jpeg,.png,.docx,.xlsx" required>
+        <select name="category" style="width:auto">{% for l, v in doc_categories %}<option value="{{ v }}">{{ l }}</option>{% endfor %}</select>
+        <input type="hidden" name="_token" value="{{ csrf_token('asset_op' ~ asset.id) }}">
+        <button class="btn">Загрузить</button>
+        <span class="help">PDF, JPG, PNG, DOCX, XLSX до 20 МБ</span>
+    </form>
+    {% endif %}
+</div>
+
+{% if audit %}
+<details><summary>Журнал аудита по активу ({{ audit|length }})</summary>
+<div class="table-wrap" style="margin-top:8px"><table>
+    <thead><tr><th>Дата</th><th>Пользователь</th><th>Действие</th><th>Было</th><th>Стало</th><th>IP</th></tr></thead>
+    {% for e in audit %}<tr><td class="small nowrap">{{ e.occurredAt|dt }}</td><td class="small">{{ e.username }}</td><td class="small mono">{{ e.action }}</td>
+        <td class="small"><pre style="margin:0;white-space:pre-wrap">{{ e.oldValues ? e.oldValues|json_pretty }}</pre></td>
+        <td class="small"><pre style="margin:0;white-space:pre-wrap">{{ e.newValues ? e.newValues|json_pretty }}</pre></td><td class="small">{{ e.ip }}</td></tr>{% endfor %}
+</table></div></details>
+{% endif %}
+
+{% if is_granted('ROLE_IT') %}
+<div class="modal" id="status-modal"><div class="box">
+    <h2 style="margin-top:0">Смена статуса</h2>
+    <p>Текущий: {{ asset.status|status_badge }}</p>
+    {% if transitions %}
+    <form method="post" action="{{ path('asset_status', {id: asset.id}) }}">
+        <div class="field"><label>Новый статус</label><select name="status">
+            {% for t in transitions %}{% if t.value != 'assigned' %}<option value="{{ t.value }}">{{ t.label }}</option>{% endif %}{% endfor %}</select></div>
+        <div class="field"><label>Комментарий / основание</label><textarea name="comment" rows="2"></textarea>
+            <div class="help">Для списания, архивации и восстановления — обязательно.</div></div>
+        <input type="hidden" name="_token" value="{{ csrf_token('asset_op' ~ asset.id) }}">
+        <div class="actions"><button class="btn primary">Изменить</button><button type="button" class="btn" data-close>Отмена</button></div>
+    </form>
+    {% else %}<p class="muted">Из текущего статуса нет допустимых переходов. {% if asset.status.terminal %}Восстановление выполняет администратор.{% endif %}</p>
+        <button type="button" class="btn" data-close>Закрыть</button>{% endif %}
+</div></div>
+<div class="modal" id="move-modal"><div class="box">
+    <h2 style="margin-top:0">Перемещение</h2>
+    <form method="post" action="{{ path('asset_move', {id: asset.id}) }}">
+        <div class="field"><label>Новое местоположение</label>{{ m.location_select('location', locations, asset.location ? asset.location.id : null) }}</div>
+        {% if not asset.employee %}<div class="field"><label style="font-weight:normal"><input type="checkbox" name="installed" value="1"> отметить «Установлено в помещении»</label></div>{% endif %}
+        <div class="field"><label>Комментарий</label><input type="text" name="comment"></div>
+        <input type="hidden" name="_token" value="{{ csrf_token('asset_op' ~ asset.id) }}">
+        <div class="actions"><button class="btn primary">Переместить</button><button type="button" class="btn" data-close>Отмена</button></div>
+    </form>
+</div></div>
+{% endif %}
+{% endblock %}

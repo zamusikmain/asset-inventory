@@ -1,0 +1,59 @@
+{% extends 'base.html.twig' %}
+{% block title %}План: {{ plan.name }}{% endblock %}
+{% block body %}
+<p class="small muted"><a href="{{ path('location_show', {id: plan.location.id}) }}">{{ plan.location.pathString }}</a></p>
+<div class="actions" style="justify-content:space-between">
+    <h1>План: {{ plan.name }}</h1>
+    <div class="actions">
+        {% if is_granted('ROLE_IT') %}<button class="btn" id="edit-toggle">Редактировать области</button>{% endif %}
+        {% if is_granted('ROLE_ADMIN') %}<form method="post" action="{{ path('plan_delete', {id: plan.id}) }}" class="inline-form" data-confirm="Удалить план?">
+            <input type="hidden" name="_token" value="{{ csrf_token('plan_delete' ~ plan.id) }}"><button class="btn danger">Удалить</button></form>{% endif %}
+    </div>
+</div>
+<div id="editor" class="panel" style="display:none">
+    <p class="small">Режим редактирования: выберите помещение и обведите область на плане мышью (нажать и протянуть). Клик по области — удалить. Затем «Сохранить».</p>
+    <div class="actions"><select id="room" style="max-width:360px">{% for r in rooms %}<option value="{{ r.id }}">{{ r.pathString }}</option>{% else %}<option value="">Нет помещений внутри этой локации</option>{% endfor %}</select>
+        <button class="btn primary" id="save">Сохранить области</button><span id="save-msg" class="small"></span></div>
+</div>
+<div class="plan-wrap" id="plan">
+    <img src="{{ path('plan_image', {id: plan.id}) }}" alt="{{ plan.name }}" draggable="false">
+</div>
+<p class="small muted">Число — количество активов в помещении; красная рамка — есть открытые расхождения инвентаризации. Клик по помещению открывает список.</p>
+{% endblock %}
+{% block scripts %}
+<script>
+let regions = {{ plan.regions|json_encode|raw }};
+const counts = {{ counts|json_encode(constant('JSON_FORCE_OBJECT'))|raw }}, disc = {{ disc|json_encode(constant('JSON_FORCE_OBJECT'))|raw }};
+const names = {{ names|json_encode(constant('JSON_FORCE_OBJECT'))|raw }};
+const roomNames = Object.fromEntries([...document.querySelectorAll('#room option')].map(o => [o.value, o.textContent.split(' / ').pop()]));
+const wrap = document.getElementById('plan'); let editing = false;
+function draw() {
+  wrap.querySelectorAll('.region').forEach(e => e.remove());
+  regions.forEach((r, i) => {
+    const d = document.createElement('div');
+    d.className = 'region' + ((disc[r.locationId] || 0) > 0 ? ' disc' : '');
+    Object.assign(d.style, {left: r.x + '%', top: r.y + '%', width: r.w + '%', height: r.h + '%'});
+    d.innerHTML = `<span>${App.esc(names[r.locationId] || roomNames[r.locationId] || '#' + r.locationId)}</span>` + (editing ? '' : `<span class="cnt">${counts[r.locationId] ?? 0}</span>${disc[r.locationId] ? '<span style="color:#a8261d">расх.: ' + disc[r.locationId] + '</span>' : ''}`);
+    d.onclick = (e) => { e.stopPropagation(); if (editing) { regions.splice(i, 1); draw(); } else location.href = '{{ path('location_show', {id: 0}) }}'.replace(/0$/, r.locationId); };
+    wrap.appendChild(d);
+  });
+}
+draw();
+{% if is_granted('ROLE_IT') %}
+document.getElementById('edit-toggle').onclick = () => { editing = !editing; document.getElementById('editor').style.display = editing ? '' : 'none'; draw(); };
+let start = null, draft = null;
+const pct = e => { const b = wrap.getBoundingClientRect(); return {x: Math.max(0, Math.min(100, (e.clientX - b.left) / b.width * 100)), y: Math.max(0, Math.min(100, (e.clientY - b.top) / b.height * 100))}; };
+wrap.addEventListener('mousedown', e => { if (!editing || e.target.closest('.region')) return; e.preventDefault(); start = pct(e); draft = document.createElement('div'); draft.className = 'draft'; wrap.appendChild(draft); });
+window.addEventListener('mousemove', e => { if (!start) return; const p = pct(e);
+  Object.assign(draft.style, {left: Math.min(p.x, start.x) + '%', top: Math.min(p.y, start.y) + '%', width: Math.abs(p.x - start.x) + '%', height: Math.abs(p.y - start.y) + '%'}); });
+window.addEventListener('mouseup', e => { if (!start) return; const p = pct(e); draft.remove();
+  const r = {locationId: +document.getElementById('room').value, x: Math.min(p.x, start.x), y: Math.min(p.y, start.y), w: Math.abs(p.x - start.x), h: Math.abs(p.y - start.y)};
+  start = null; if (r.w > 0.5 && r.h > 0.5 && r.locationId) { regions.push(r); draw(); } });
+document.getElementById('save').onclick = async () => {
+  const m = document.getElementById('save-msg');
+  try { const d = await App.api('{{ path('plan_regions', {id: plan.id}) }}', {method: 'POST', body: JSON.stringify({regions})}); m.textContent = 'Сохранено областей: ' + d.count; }
+  catch (err) { m.textContent = err.message; }
+};
+{% endif %}
+</script>
+{% endblock %}

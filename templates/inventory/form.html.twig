@@ -1,0 +1,17 @@
+{% extends 'base.html.twig' %}
+{% block title %}{{ is_new ? 'Новая кампания' : campaign.number }}{% endblock %}
+{% block body %}
+<h1>{{ is_new ? 'Новая кампания инвентаризации' : 'Кампания ' ~ campaign.number }}</h1>
+{{ form_start(form, {attr: {class: 'panel'}}) }}
+<div class="form-grid">
+    {{ form_row(form.number) }}{{ form_row(form.name) }}
+    {{ form_row(form.basis) }}<div></div>
+    {{ form_row(form.startDate) }}{{ form_row(form.endDate) }}
+    {{ form_row(form.locations) }}{{ form_row(form.assetTypes) }}
+    {{ form_row(form.itResponsible) }}{{ form_row(form.commissionUsers) }}
+    {{ form_row(form.chairman) }}{{ form_row(form.comment) }}
+</div>
+<p class="help">Множественный выбор — Ctrl/Shift. Охват включает все вложенные помещения выбранных локаций. Ожидаемый состав фиксируется при запуске.</p>
+<div class="actions"><button class="btn primary">Сохранить</button><a class="btn" href="{{ path('inventory_index') }}">Отмена</a></div>
+{{ form_end(form) }}
+{% endblock %}

@@ -1,0 +1,125 @@
+{% extends 'base.html.twig' %}
+{% import '_macros.html.twig' as m %}
+{% block title %}Импорт: предварительный отчет{% endblock %}
+{% block body %}
+<h1>Предварительный отчет: {{ job.originalName }}</h1>
+<p class="muted small">Лист «{{ job.sheetName }}», заголовки в строке {{ job.headerRow }} · {{ job.statusLabel }} · <a href="{{ path('import_mapping', {id: job.id}) }}">изменить сопоставление</a></p>
+<div class="grid g4">
+    <div class="panel"><div class="stat">{{ s.rows }}</div><div class="stat-label">строк</div></div>
+    <div class="panel"><div class="stat" style="color:var(--green)">{{ s.create }}</div><div class="stat-label">новых активов (создать)</div></div>
+    <div class="panel"><div class="stat" style="color:var(--blue)">{{ s.update }}</div><div class="stat-label">обновить · совпадений с реестром: {{ s.matches }}</div></div>
+    <div class="panel"><div class="stat" style="color:var(--gray)">{{ s.skip }}</div><div class="stat-label">пропустить · с ошибками: {{ s.errors }}</div></div>
+</div>
+<div class="grid g4">
+    <div class="panel small"><b>Дубликаты в файле:</b> {{ s.duplicates }}<br><b>Пустые/некорректные инв. номера:</b> {{ s.bad_inventory }}<br><b>Некорректные даты:</b> {{ s.bad_dates }}<br><b>Строк с предупреждениями:</b> {{ s.warnings }}</div>
+    {% for kind, title in {'unknown_status': 'Неизвестные статусы', 'unknown_location': 'Неизвестные расположения', 'unknown_employee': 'Неизвестные сотрудники'} %}
+    <div class="panel small"><b>{{ title }}</b> ({{ s[kind]|length }})
+        {% for val, cnt in s[kind]|slice(0, 8, true) %}
+            <div class="actions" style="margin-top:4px"><span>«{{ val }}» × {{ cnt }}</span>
+            {% if job.editable %}<a href="#" class="small" onclick='mapVal({{ {kind: kind|replace({"unknown_": ""}), source: val}|json_encode|raw }});return false'>сопоставить</a>{% endif %}</div>
+        {% endfor %}
+        {% if s[kind]|length > 8 %}<div class="muted">…и еще {{ s[kind]|length - 8 }}</div>{% endif %}
+    </div>
+    {% endfor %}
+</div>
+
+<div class="actions" style="margin-bottom:10px">
+    {% for k, l in {'all': 'Все', 'errors': 'С ошибками', 'warnings': 'С предупреждениями', 'create': 'Создать', 'update': 'Обновить', 'skip': 'Пропустить'} %}
+        <a class="btn small {{ filter == k ? 'primary' }}" href="{{ path('import_report', {id: job.id, filter: k}) }}">{{ l }}</a>{% endfor %}
+    {% if job.editable %}
+    <form method="post" action="{{ path('import_bulk', {id: job.id}) }}" class="inline-form"><input type="hidden" name="what" value="skip_warnings">
+        <input type="hidden" name="_token" value="{{ csrf_token('import_row' ~ job.id) }}"><button class="btn small">Исключить все строки с предупреждениями</button></form>
+    <form method="post" action="{{ path('import_bulk', {id: job.id}) }}" class="inline-form"><input type="hidden" name="what" value="reset">
+        <input type="hidden" name="_token" value="{{ csrf_token('import_row' ~ job.id) }}"><button class="btn small">Сбросить решения</button></form>
+    {% endif %}
+</div>
+
+<div class="table-wrap"><table>
+    <thead><tr><th>Стр.</th><th>Инв. номер</th><th>Наименование</th><th>Сотрудник</th><th>Статус</th><th>Расположение</th><th>Проверка</th><th>Изменения (старое → новое)</th><th>Действие</th></tr></thead>
+    {% for r in rows %}{% set n = r.normalized %}
+        <tr style="{{ r.hasErrors ? 'background:#fff6f5' }}">
+            <td>{{ r.rowNumber }}</td>
+            <td class="mono">{{ r.raw.inventory_number ?? '' }}{% if r.matchedAssetId %}<div><a class="small" href="{{ path('asset_show', {id: r.matchedAssetId}) }}" target="_blank">в реестре</a></div>{% endif %}</td>
+            <td class="small">{{ r.raw.name ?? '' }}</td>
+            <td class="small">{{ n.employee_name ?? (r.raw.employee_en ?? r.raw.employee_ru ?? '') }}</td>
+            <td class="small">{{ r.raw.status ?? '' }}{% if n.status is defined %}<div>→ {{ n.status|status_badge }}</div>{% endif %}</td>
+            <td class="small">{{ r.raw.location ?? '' }}{% if n.location_name is defined %}<div class="muted">→ {{ n.location_name }}</div>{% endif %}</td>
+            <td class="small"><ul class="issues" style="padding-left:14px;margin:0">{% for i in r.issues %}<li class="{{ i.level }}">{{ i.message }}</li>{% endfor %}</ul></td>
+            <td class="small">{% for f, d in r.diff %}<div><b>{{ f }}</b>: <span class="diff-old">{{ d[0] ?: '∅' }}</span> → <span class="diff-new">{{ d[1] }}</span></div>{% endfor %}</td>
+            <td class="nowrap">
+                {% if job.editable %}
+                <form method="post" action="{{ path('import_row_action', {id: r.id}) }}" class="inline-form">
+                    <select name="action" onchange="this.form.submit()" style="width:auto">
+                        {% for a, l in {'create': 'Создать', 'update': 'Обновить', 'skip': 'Пропустить'} %}<option value="{{ a }}" {{ r.action == a ? 'selected' }}>{{ l }}</option>{% endfor %}</select>
+                    <input type="hidden" name="_token" value="{{ csrf_token('import_row' ~ job.id) }}"></form>
+                <a href="#" class="small" onclick='editRow({{ r.id }}, {{ r.raw|json_encode|raw }});return false'>исправить</a>
+                {% else %}{{ r.action }} {{ r.outcome }}{% endif %}
+            </td>
+        </tr>
+    {% else %}<tr><td colspan="9" class="muted">Нет строк</td></tr>{% endfor %}
+</table></div>
+{% if pages > 1 %}<div class="pager">{% for p in 1..pages %}{% if p == page %}<span class="cur">{{ p }}</span>{% else %}<a href="{{ path('import_report', {id: job.id, filter: filter, page: p}) }}">{{ p }}</a>{% endif %}{% endfor %} <span class="muted" style="border:none">строк: {{ total_rows }}</span></div>{% endif %}
+
+{% if job.editable %}
+<div class="panel" style="margin-top:16px;border-color:#9cc3ea">
+    <h3 style="margin-top:0">7. Запись в реестр</h3>
+    <p>Будет создано <b>{{ s.create }}</b> и обновлено <b>{{ s.update }}</b> активов; <b>{{ s.skip }}</b> строк будут пропущены. Все изменения фиксируются в истории и журнале аудита.</p>
+    <form method="post" action="{{ path('import_commit', {id: job.id}) }}" data-confirm="Записать данные в реестр?">
+        <label style="font-weight:normal"><input type="checkbox" name="create_employees" value="1"> создать карточки для неизвестных сотрудников (по ФИО ENG/RUS)</label>
+        <label style="font-weight:normal"><input type="checkbox" name="confirm" value="1" required> Я проверил(а) предварительный отчет и подтверждаю запись</label>
+        <input type="hidden" name="_token" value="{{ csrf_token('import_commit' ~ job.id) }}">
+        <div class="actions" style="margin-top:10px"><button class="btn primary">Записать</button></div>
+    </form>
+    <form method="post" action="{{ path('import_cancel', {id: job.id}) }}" style="margin-top:8px" data-confirm="Отменить импорт?">
+        <input type="hidden" name="_token" value="{{ csrf_token('import_commit' ~ job.id) }}"><button class="btn danger small">Отменить импорт</button></form>
+</div>
+
+<div class="modal" id="edit-modal"><div class="box">
+    <h2 style="margin-top:0">Исправление строки <span id="e-row"></span></h2>
+    <form method="post" id="edit-form">
+        {% for k in ['inventory_number', 'full_inventory_number', 'name', 'employee_en', 'employee_ru', 'status', 'location', 'date', 'comment'] %}
+            <div class="field"><label>{{ fields[k].label }}</label><input type="text" name="v[{{ k }}]" id="e-{{ k }}"></div>
+        {% endfor %}
+        <input type="hidden" name="_token" value="{{ csrf_token('import_row' ~ job.id) }}">
+        <div class="actions"><button class="btn primary">Сохранить и перепроверить</button><button type="button" class="btn" data-close>Отмена</button></div>
+    </form>
+</div></div>
+
+<div class="modal" id="map-modal"><div class="box">
+    <h2 style="margin-top:0">Справочник соответствий</h2>
+    <form method="post" action="{{ path('import_map_value', {id: job.id}) }}">
+        <p>Значение из Excel: <b id="m-src-label"></b></p>
+        <input type="hidden" name="kind" id="m-kind"><input type="hidden" name="source" id="m-src">
+        <div class="field" id="m-status"><label>Статус системы</label><select name="target" disabled>{% for st in statuses %}<option value="{{ st.value }}">{{ st.label }}</option>{% endfor %}</select></div>
+        <div class="field" id="m-location"><label>Локация</label>{{ m.location_select('target', locations, null) }}</div>
+        <div class="field" id="m-employee"><label>Сотрудник</label><input type="search" id="m-emp-q" placeholder="Поиск…"><input type="hidden" name="target" id="m-emp-id" disabled><div id="m-emp-res" class="small"></div></div>
+        <input type="hidden" name="_token" value="{{ csrf_token('import_row' ~ job.id) }}">
+        <div class="actions"><button class="btn primary">Сохранить соответствие</button><button type="button" class="btn" data-close>Отмена</button></div>
+    </form>
+</div></div>
+{% endif %}
+{% endblock %}
+{% block scripts %}
+<script>
+function editRow(id, raw) {
+  document.getElementById('edit-form').action = '{{ path('import_row_edit', {id: 0}) }}'.replace(/\/0\//, '/' + id + '/');
+  document.getElementById('e-row').textContent = '';
+  for (const k of ['inventory_number','full_inventory_number','name','employee_en','employee_ru','status','location','date','comment']) document.getElementById('e-' + k).value = raw[k] ?? '';
+  App.modal('edit-modal');
+}
+function mapVal(d) {
+  document.getElementById('m-kind').value = d.kind; document.getElementById('m-src').value = d.source; document.getElementById('m-src-label').textContent = d.source;
+  for (const k of ['status','location','employee']) {
+    const box = document.getElementById('m-' + k); box.style.display = k === d.kind ? '' : 'none';
+    box.querySelectorAll('select,input[type=hidden]').forEach(el => el.disabled = k !== d.kind);
+  }
+  App.modal('map-modal');
+}
+const mq = document.getElementById('m-emp-q'); let mt;
+mq?.addEventListener('input', () => { clearTimeout(mt); mt = setTimeout(async () => {
+  const d = await App.api('{{ path('api_employees') }}?q=' + encodeURIComponent(mq.value));
+  document.getElementById('m-emp-res').innerHTML = d.items.map(e => `<div><a href="#" data-id="${e.id}">${App.esc(e.name)}</a> <span class="muted">${App.esc(e.display_name)}</span></div>`).join('') || 'Не найдено';
+}, 250); });
+document.getElementById('m-emp-res')?.addEventListener('click', e => { if (e.target.dataset.id) { e.preventDefault(); document.getElementById('m-emp-id').value = e.target.dataset.id; mq.value = e.target.textContent; document.getElementById('m-emp-res').innerHTML = ''; } });
+</script>
+{% endblock %}

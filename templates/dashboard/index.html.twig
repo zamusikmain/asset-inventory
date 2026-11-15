@@ -1,0 +1,44 @@
+{% extends 'base.html.twig' %}
+{% block title %}Главная{% endblock %}
+{% block body %}
+<h1>Главная</h1>
+<div class="grid g4">
+    <div class="panel"><div class="stat">{{ total }}</div><div class="stat-label">активов в реестре</div></div>
+    <div class="panel"><div class="stat">{{ by_status.assigned ?? 0 }}</div><div class="stat-label">закреплено за сотрудниками</div></div>
+    <div class="panel"><div class="stat">{{ by_status.in_stock ?? 0 }}</div><div class="stat-label">на складе</div></div>
+    <div class="panel"><div class="stat">{{ open_discrepancies }}</div><div class="stat-label">открытых расхождений инвентаризации</div></div>
+</div>
+
+<div class="grid g2">
+    <div class="panel">
+        <h2 style="margin-top:0">По статусам</h2>
+        <table>
+            {% for s in statuses %}{% if by_status[s.value] is defined %}
+                <tr><td>{{ s|status_badge }}</td><td class="right"><a href="{{ path('asset_index', {status: s.value}) }}">{{ by_status[s.value] }}</a></td></tr>
+            {% endif %}{% else %}<tr><td class="muted">Реестр пуст. Начните с <a href="{{ path('import_index') }}">импорта Excel</a>.</td></tr>{% endfor %}
+        </table>
+    </div>
+    <div class="panel">
+        <h2 style="margin-top:0">Активные инвентаризации</h2>
+        {% for c in active_campaigns %}
+            <p><a href="{{ path('inventory_show', {id: c.id}) }}">{{ c }}</a> {{ badge(c.status.label, 'blue') }}
+               <a class="btn small" href="{{ path('inventory_scan', {id: c.id}) }}">Сканировать</a></p>
+        {% else %}<p class="muted">Нет активных кампаний.</p>{% endfor %}
+
+        <h2>Акты, ожидающие подписи</h2>
+        {% for d in awaiting_signature %}
+            <p><a href="{{ path('handover_document', {id: d.id}) }}">{{ d.number }}</a> — {{ d.employee ? d.employee.name : '' }}
+               <span class="muted small">{{ d.createdAt|dt }}{% if d.signDeadline %}, срок до {{ d.signDeadline|dt('d.m.Y') }}{% endif %}</span></p>
+        {% else %}<p class="muted">Нет.</p>{% endfor %}
+
+        {% if failed_notifications %}<div class="flash error">Не отправлено уведомлений: {{ failed_notifications }} — <a href="{{ path('admin_notifications', {status: 'failed'}) }}">посмотреть</a></div>{% endif %}
+
+        {% if licenses_expiring %}
+            <h2>Лицензии: истекают в течение 30 дней</h2>
+            {% for l in licenses_expiring %}
+                <p><a href="{{ path('license_show', {id: l.id}) }}">{{ l }}</a> — до {{ l.validUntil|dt('d.m.Y') }}</p>
+            {% endfor %}
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

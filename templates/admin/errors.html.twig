@@ -1,0 +1,14 @@
+{% extends 'base.html.twig' %}
+{% import '_macros.html.twig' as m %}
+{% block title %}Технические ошибки{% endblock %}
+{% block body %}
+<h1>Журнал технических ошибок</h1>
+<div class="table-wrap"><table>
+    <thead><tr><th>Дата</th><th>Ошибка</th><th>URI</th><th>Пользователь</th><th>Уведомлен</th></tr></thead>
+    {% for e in pager %}<tr><td class="small nowrap">{{ e.occurredAt|dt('d.m.Y H:i:s') }}</td>
+        <td><b class="small mono">{{ e.exceptionClass }}</b><div>{{ e.message }}</div><details><summary class="small">trace</summary><pre class="small" style="white-space:pre-wrap">{{ e.trace }}</pre></details></td>
+        <td class="small mono">{{ e.requestUri }}</td><td class="small">{{ e.username }}</td><td>{{ e.notified ? '✔' }}</td></tr>
+    {% else %}<tr><td colspan="5" class="muted">Ошибок нет</td></tr>{% endfor %}
+</table></div>
+{{ m.pager(pager, 'admin_errors', {}) }}
+{% endblock %}

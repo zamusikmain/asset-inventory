@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{% block title %}Учет оборудования{% endblock %} — {{ org_name }}</title>
+    <link rel="stylesheet" href="{{ asset('css/app.css') }}">
+    <link rel="icon" href="{{ asset('icons/icon.svg') }}">
+    <meta name="csrf-api" content="1">
+    {% block head %}{% endblock %}
+</head>
+<body>
+{% set route = app.request.attributes.get('_route') %}
+<div class="layout">
+    <nav class="sidebar">
+        <div class="logo">Учет оборудования<small>{{ org_name }}</small></div>
+        <a href="{{ path('app_dashboard') }}" class="{{ route == 'app_dashboard' ? 'active' }}">Главная</a>
+        <a href="{{ path('scan_lookup') }}" class="{{ route == 'scan_lookup' ? 'active' }}">Сканирование</a>
+        <div class="sect">Реестр</div>
+        <a href="{{ path('asset_index') }}" class="{{ route starts with 'asset_' ? 'active' }}">Оборудование</a>
+        {% if is_granted('ROLE_IT') %}
+            <a href="{{ path('license_index') }}" class="{{ route starts with 'license_' ? 'active' }}">Лицензии</a>
+            <a href="{{ path('employee_index') }}" class="{{ route starts with 'employee_' ? 'active' }}">Сотрудники</a>
+            <a href="{{ path('bundle_index') }}" class="{{ route starts with 'bundle_' ? 'active' }}">Комплекты</a>
+        {% endif %}
+        <a href="{{ path('location_index') }}" class="{{ route starts with 'location_' or route starts with 'plan_' ? 'active' }}">Локации и планы</a>
+        {% if is_granted('ROLE_IT') %}
+            <div class="sect">Операции</div>
+            <a href="{{ path('handover_issue') }}" class="{{ route == 'handover_issue' ? 'active' }}">Выдача</a>
+            <a href="{{ path('handover_return') }}" class="{{ route == 'handover_return' ? 'active' }}">Возврат</a>
+            <a href="{{ path('handover_documents') }}" class="{{ route in ['handover_documents', 'handover_document'] ? 'active' }}">Акты и ЭЦП</a>
+            <a href="{{ path('import_index') }}" class="{{ route starts with 'import_' ? 'active' }}">Импорт Excel</a>
+        {% endif %}
+        <div class="sect">Инвентаризация</div>
+        <a href="{{ path('inventory_index') }}" class="{{ route starts with 'inventory_' ? 'active' }}">Кампании</a>
+        <a href="{{ path('pwa_app') }}">Мобильная версия</a>
+        {% if is_granted('ROLE_IT') %}
+            <div class="sect">Справочники</div>
+            <a href="{{ path('type_index') }}" class="{{ route == 'type_index' ? 'active' }}">Типы и атрибуты</a>
+        {% endif %}
+        {% if is_granted('ROLE_ADMIN') %}
+            <div class="sect">Администрирование</div>
+            <a href="{{ path('admin_users') }}" class="{{ route starts with 'admin_user' ? 'active' }}">Пользователи</a>
+            <a href="{{ path('admin_audit') }}" class="{{ route == 'admin_audit' ? 'active' }}">Журнал аудита</a>
+            <a href="{{ path('admin_notifications') }}" class="{{ route == 'admin_notifications' ? 'active' }}">Уведомления</a>
+            <a href="{{ path('admin_mappings') }}" class="{{ route == 'admin_mappings' ? 'active' }}">Соответствия импорта</a>
+            <a href="{{ path('admin_integrations') }}" class="{{ route == 'admin_integrations' ? 'active' }}">Интеграции</a>
+            <a href="{{ path('admin_errors') }}" class="{{ route == 'admin_errors' ? 'active' }}">Ошибки</a>
+        {% endif %}
+    </nav>
+    <main class="main">
+        <div class="topbar no-print">
+            <form action="{{ path('asset_index') }}" method="get">
+                <input type="search" name="q" placeholder="Инв. номер, серийный, наименование, сотрудник…" value="{{ app.request.query.get('q') }}">
+                <button class="btn">Найти</button>
+            </form>
+            <div class="user">
+                {{ app.user.fullName ?: app.user.username }} ·
+                <a href="{{ path('app_change_password') }}">Пароль</a> ·
+                <a href="{{ path('app_logout') }}">Выход</a>
+            </div>
+        </div>
+        {% for type, messages in app.flashes %}
+            {% for m in messages %}<div class="flash {{ type }}">{{ m }}</div>{% endfor %}
+        {% endfor %}
+        {% block body %}{% endblock %}
+    </main>
+</div>
+<script src="{{ asset('js/app.js') }}"></script>
+{% block scripts %}{% endblock %}
+</body>
+</html>

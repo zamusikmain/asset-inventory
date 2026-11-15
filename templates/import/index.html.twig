@@ -1,0 +1,26 @@
+{% extends 'base.html.twig' %}
+{% block title %}Импорт Excel{% endblock %}
+{% block body %}
+<h1>Импорт Excel</h1>
+<div class="grid g2">
+    <form method="post" enctype="multipart/form-data" class="panel">
+        <h3 style="margin-top:0">1. Выбор файла</h3>
+        <div class="field"><input type="file" name="file" accept=".xlsx,.xls" required></div>
+        <input type="hidden" name="_token" value="{{ csrf_token('import_upload') }}">
+        <button class="btn primary">Загрузить и проверить структуру</button>
+        <p class="help">Данные реестра не изменяются до явного подтверждения после предварительного отчета.</p>
+    </form>
+    <div class="panel small">
+        <h3 style="margin-top:0">Ожидаемые столбцы</h3>
+        <ul>{% for k, f in fields %}<li>{{ f.label }}{% if f.required is defined %} <b>*</b>{% endif %}{% if k == 'recovery_key' %} — <i>значения не импортируются (п. 9), только признак наличия</i>{% endif %}</li>{% endfor %}</ul>
+    </div>
+</div>
+<h2>Последние импорты</h2>
+<div class="table-wrap"><table>
+    <thead><tr><th>#</th><th>Файл</th><th>Загружен</th><th>Кем</th><th>Статус</th><th>Строк</th><th></th></tr></thead>
+    {% for j in jobs %}<tr><td>{{ j.id }}</td><td>{{ j.originalName }}</td><td class="small">{{ j.createdAt|dt }}</td><td class="small">{{ j.createdBy }}</td>
+        <td>{{ badge(j.statusLabel, j.status == 'committed' ? 'green' : (j.status == 'cancelled' ? 'gray' : 'amber')) }}</td><td>{{ j.summary.rows ?? '—' }}</td>
+        <td>{% if j.status == 'uploaded' %}<a href="{{ path('import_mapping', {id: j.id}) }}">Сопоставление</a>{% elseif j.status == 'analyzed' %}<a href="{{ path('import_report', {id: j.id}) }}">Отчет</a>{% elseif j.status == 'committed' %}<a href="{{ path('import_protocol', {id: j.id}) }}">Протокол</a>{% endif %}</td></tr>
+    {% else %}<tr><td colspan="7" class="muted">Импортов еще не было</td></tr>{% endfor %}
+</table></div>
+{% endblock %}

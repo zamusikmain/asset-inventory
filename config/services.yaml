@@ -1,0 +1,24 @@
+parameters:
+    app.org_name: '%env(ORG_NAME)%'
+    app.it_contacts: '%env(IT_CONTACTS)%'
+
+services:
+    _defaults:
+        autowire: true
+        autoconfigure: true
+        bind:
+            string $orgName: '%env(ORG_NAME)%'
+            string $itContacts: '%env(IT_CONTACTS)%'
+            string $mailFrom: '%env(MAIL_FROM)%'
+
+    App\:
+        resource: '../src/'
+        exclude:
+            - '../src/Entity/'
+            - '../src/Enum/'
+            - '../src/Exception/'
+            - '../src/Kernel.php'
+            - '../src/Service/Signature/VerificationResult.php'
+            - '../src/Message/'
+
+    App\Service\Integration\OneCConnectorInterface: '@App\Service\Integration\FileOneCConnector'

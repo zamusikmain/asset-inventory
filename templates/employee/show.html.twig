@@ -1,0 +1,64 @@
+{% extends 'base.html.twig' %}
+{% block title %}{{ employee.name }}{% endblock %}
+{% block body %}
+<div class="actions" style="justify-content:space-between;align-items:flex-start">
+    <div><h1 style="margin-bottom:4px">{{ employee.name }}</h1>
+        <div class="muted">{{ employee.position }}{% if employee.department %} · {{ employee.department }}{% endif %} {{ badge(employee.statusLabel, employee.status == 'active' ? 'green' : 'gray') }}</div></div>
+    <div class="actions">
+        <a class="btn primary" href="{{ path('handover_issue', {employee: employee.id}) }}">Выдать оборудование</a>
+        {% if assets %}<a class="btn" href="{{ path('handover_return', {employee: employee.id}) }}">Возврат</a>{% endif %}
+        <form method="post" action="{{ path('employee_notify', {id: employee.id}) }}" class="inline-form">
+            <input type="hidden" name="_token" value="{{ csrf_token('notify' ~ employee.id) }}"><button class="btn">Отправить перечень</button></form>
+        <a class="btn" href="{{ path('employee_edit', {id: employee.id}) }}">Редактировать</a>
+    </div>
+</div>
+<div class="grid g2" style="margin-top:14px">
+    <div class="panel"><dl class="props">
+        <dt>DisplayName</dt><dd>{{ employee.displayName }}</dd>
+        <dt>ФИО (рус. / англ.)</dt><dd>{{ employee.fullNameRu ?: '—' }} / {{ employee.fullNameEn ?: '—' }}</dd>
+        <dt>Email / UPN</dt><dd>{{ employee.email ?: '—' }} / {{ employee.upn ?: '—' }}</dd>
+        <dt>Компания</dt><dd>{{ employee.company ?: '—' }}</dd>
+        <dt>Город / офис</dt><dd>{{ employee.city ? employee.city.name : '—' }} / {{ employee.office ? employee.office.name : '—' }}</dd>
+        <dt>Руководитель</dt><dd>{{ employee.manager ? employee.manager.name : '—' }}</dd>
+    </dl></div>
+    <div class="panel"><dl class="props">
+        <dt>UUID</dt><dd class="mono small">{{ employee.id }}</dd>
+        <dt>Entra Object ID</dt><dd class="mono small">{{ employee.entraObjectId ?: '—' }}</dd>
+        <dt>ID 1С</dt><dd class="mono small">{{ employee.external1cId ?: '—' }}</dd>
+        <dt>extensionAttribute</dt><dd>{{ employee.extensionAttribute ?: '—' }}</dd>
+        <dt>Источник</dt><dd>{{ employee.source }}{% if employee.lastSyncAt %}, синхр. {{ employee.lastSyncAt|dt }}{% endif %}</dd>
+    </dl></div>
+</div>
+
+<h2>Закрепленное оборудование ({{ assets|length }})</h2>
+<div class="table-wrap"><table>
+    <thead><tr><th>Инв. номер</th><th>Наименование</th><th>Серийный №</th><th>Статус</th><th>Местоположение</th></tr></thead>
+    {% for a in assets %}<tr><td class="mono"><a href="{{ path('asset_show', {id: a.id}) }}">{{ a.inventoryNumber }}</a></td><td>{{ a.name }}</td>
+        <td class="mono small">{{ a.serialNumber }}</td><td>{{ a.status|status_badge }}</td><td class="small">{{ a.location ? a.location.pathString }}</td></tr>
+    {% else %}<tr><td colspan="5" class="muted">Нет закрепленного оборудования</td></tr>{% endfor %}
+</table></div>
+
+{% if licenses %}<h2>Лицензии</h2><div class="panel">{% for la in licenses %}<p><a href="{{ path('license_show', {id: la.license.id}) }}">{{ la.license }}</a> <span class="small muted">с {{ la.assignedAt|dt('d.m.Y') }}</span></p>{% endfor %}</div>{% endif %}
+
+<h2>Акты</h2>
+<div class="table-wrap"><table>
+    <thead><tr><th>Номер</th><th>Тип</th><th>Дата</th><th>Позиций</th><th>Подпись</th></tr></thead>
+    {% for d in documents %}<tr><td><a href="{{ path('handover_document', {id: d.id}) }}">{{ d.number }}</a></td><td>{{ d.typeLabel }}</td><td class="small">{{ d.createdAt|dt }}</td>
+        <td>{{ d.items|length }}</td><td>{{ badge(d.statusLabel, d.status == 'signed' ? 'green' : (d.status == 'awaiting_signature' ? 'amber' : 'red')) }}</td></tr>
+    {% else %}<tr><td colspan="5" class="muted">Нет актов</td></tr>{% endfor %}
+</table></div>
+
+<h2>История закреплений</h2>
+<div class="table-wrap"><table>
+    <thead><tr><th>Актив</th><th>Выдан</th><th>Возвращен</th><th>Подтверждено ЭЦП</th></tr></thead>
+    {% for h in history %}<tr><td class="mono"><a href="{{ path('asset_show', {id: h.asset.id}) }}">{{ h.asset.inventoryNumber }}</a> <span class="small">{{ h.asset.name }}</span></td>
+        <td class="small">{{ h.assignedAt|dt }}{% if h.issueDocument %} · {{ h.issueDocument.number }}{% endif %}</td>
+        <td class="small">{{ h.returnedAt ? h.returnedAt|dt : '—' }}{% if h.returnDocument %} · {{ h.returnDocument.number }}{% endif %}</td>
+        <td>{{ h.confirmed ? '✔' : '—' }}</td></tr>{% endfor %}
+</table></div>
+
+{% if notifications %}
+<h2>Уведомления</h2>
+<div class="table-wrap"><table>{% for n in notifications %}<tr><td class="small">{{ n.createdAt|dt }}</td><td>{{ n.subject }}</td><td>{{ badge(n.status, n.status == 'sent' ? 'green' : (n.status == 'failed' ? 'red' : 'gray')) }}</td><td class="small muted">{{ n.error }}</td></tr>{% endfor %}</table></div>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,80 @@
+{% extends 'base.html.twig' %}
+{% block title %}Выдача оборудования{% endblock %}
+{% block body %}
+<h1>Выдача оборудования</h1>
+<div class="panel">
+    <h3 style="margin-top:0">1. Сотрудник</h3>
+    {% if employee %}
+        <p><b><a href="{{ path('employee_show', {id: employee.id}) }}">{{ employee.name }}</a></b> — {{ employee.position }} {% if employee.department %}· {{ employee.department }}{% endif %}
+            {% if not employee.email %}<span class="badge amber">нет email — уведомление не будет отправлено</span>{% endif %}
+            <a class="btn small" href="{{ path('handover_issue') }}">Сменить</a></p>
+        <h3>Уже закреплено ({{ current|length }})</h3>
+        {% if current %}<ul class="small">{% for a in current %}<li><span class="mono">{{ a.inventoryNumber }}</span> — {{ a.name }}</li>{% endfor %}</ul>
+        {% else %}<p class="muted small">Нет закрепленного оборудования.</p>{% endif %}
+    {% else %}
+        <div class="field" style="max-width:520px"><input type="search" id="emp-q" placeholder="Начните вводить ФИО или email…" autocomplete="off"></div>
+        <div id="emp-res"></div>
+    {% endif %}
+</div>
+
+{% if employee %}
+<form method="post" class="panel" id="issue-form">
+    <h3 style="margin-top:0">2. Оборудование к выдаче</h3>
+    <div class="grid g2">
+        <div class="field"><label>Сканируйте штрихкод или введите инв. номер + Enter</label><input type="text" id="scan" class="scan-box" autocomplete="off"></div>
+        <div class="field"><label>…или поиск по наименованию / серийному</label><input type="search" id="asset-q" autocomplete="off"><div id="asset-res" class="small"></div></div>
+    </div>
+    <div id="scan-msg"></div>
+    <div class="table-wrap"><table><thead><tr><th>Инв. номер</th><th>Наименование</th><th>Серийный №</th><th>Статус</th><th></th></tr></thead><tbody id="items"></tbody></table></div>
+    <div class="field" style="margin-top:12px"><label>Комментарий</label><input type="text" name="comment"></div>
+    <input type="hidden" name="employee" value="{{ employee.id }}">
+    <input type="hidden" name="_token" value="{{ csrf_token('handover_issue') }}">
+    <p class="help">После оформления система создаст операцию, сформирует PDF-акт и отправит сотруднику уведомление с полным перечнем и ссылкой на подписание ЭЦП.</p>
+    <button class="btn primary" id="submit" disabled>Оформить выдачу и сформировать акт</button>
+</form>
+{% endif %}
+{% endblock %}
+{% block scripts %}
+<script>
+{% if not employee %}
+const q = document.getElementById('emp-q'), res = document.getElementById('emp-res');
+let t; q.focus();
+q.addEventListener('input', () => { clearTimeout(t); t = setTimeout(async () => {
+  if (q.value.trim().length < 2) { res.innerHTML = ''; return; }
+  const d = await App.api('{{ path('api_employees') }}?q=' + encodeURIComponent(q.value));
+  res.innerHTML = d.items.map(e => `<p><a href="?employee=${e.id}">${App.esc(e.name)}</a> <span class="muted small">${App.esc(e.position || '')} ${App.esc(e.department || '')} ${App.esc(e.email || '')}</span></p>`).join('') || '<p class="muted">Не найдено. <a href="{{ path('employee_new') }}">Добавить сотрудника</a></p>';
+}, 250); });
+{% else %}
+const items = new Map(), tbody = document.getElementById('items'), msg = document.getElementById('scan-msg'), submit = document.getElementById('submit');
+const ISSUABLE = ['in_stock','reserved','installed','not_found','in_transit','created','review'];
+function render() {
+  tbody.innerHTML = [...items.values()].map(a => `<tr><td class="mono">${App.esc(a.inventory_number)}<input type="hidden" name="assets[]" value="${a.id}"></td>
+    <td>${App.esc(a.name)}${a.bundle ? '<div class="small muted">Комплект: ' + App.esc(a.bundle) + '</div>' : ''}</td><td class="mono small">${App.esc(a.serial_number || '')}</td>
+    <td><span class="badge blue">${App.esc(a.status_label)}</span></td><td><button type="button" class="btn small" data-rm="${a.id}">✕</button></td></tr>`).join('')
+    || '<tr><td colspan="5" class="muted">Добавьте позиции</td></tr>';
+  submit.disabled = items.size === 0;
+}
+function add(a) {
+  if (items.has(a.id)) { msg.innerHTML = `<div class="flash warning">${App.esc(a.inventory_number)} уже в списке</div>`; return; }
+  if (a.employee) { msg.innerHTML = `<div class="flash error">${App.esc(a.inventory_number)} закреплен за ${App.esc(a.employee.name)} — сначала оформите возврат</div>`; return; }
+  if (!ISSUABLE.includes(a.status)) { msg.innerHTML = `<div class="flash error">${App.esc(a.inventory_number)}: статус «${App.esc(a.status_label)}» не допускает выдачу</div>`; return; }
+  items.set(a.id, a); msg.innerHTML = `<div class="flash success">Добавлено: ${App.esc(a.inventory_number)} — ${App.esc(a.name)}</div>`; render();
+}
+tbody.addEventListener('click', e => { const id = e.target.dataset.rm; if (id) { items.delete(id); render(); } });
+App.bindScanner(document.getElementById('scan'), async code => {
+  const d = await App.api('{{ path('api_lookup') }}?code=' + encodeURIComponent(code));
+  if (d.asset) add(d.asset); else msg.innerHTML = `<div class="flash error">${App.esc(d.message)}: ${App.esc(code)}</div>`;
+});
+const aq = document.getElementById('asset-q'), ares = document.getElementById('asset-res'); let t2;
+aq.addEventListener('input', () => { clearTimeout(t2); t2 = setTimeout(async () => {
+  if (aq.value.trim().length < 2) { ares.innerHTML = ''; return; }
+  const d = await App.api('{{ path('api_assets') }}?limit=10&q=' + encodeURIComponent(aq.value));
+  window._found = Object.fromEntries(d.items.map(a => [a.id, a]));
+  ares.innerHTML = d.items.map(a => `<div><a href="#" data-add="${a.id}">${App.esc(a.inventory_number)}</a> ${App.esc(a.name)} <span class="muted">${App.esc(a.status_label)}${a.employee ? ', ' + App.esc(a.employee.name) : ''}</span></div>`).join('') || 'Не найдено';
+}, 250); });
+ares.addEventListener('click', e => { const id = e.target.dataset.add; if (id) { e.preventDefault(); add(window._found[id]); } });
+{% if preselect %}add({{ {id: preselect.id.toRfc4122, inventory_number: preselect.inventoryNumber, name: preselect.name, serial_number: preselect.serialNumber, status: preselect.status.value, status_label: preselect.status.label, employee: null, bundle: preselect.bundle ? preselect.bundle.name : null}|json_encode|raw }});{% endif %}
+render();
+{% endif %}
+</script>
+{% endblock %}

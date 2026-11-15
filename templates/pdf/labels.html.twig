@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html><head><meta charset="UTF-8">
+<style>
+    @page { margin: 0; }
+    body { margin: 0; font-family: "DejaVu Sans", sans-serif; }
+    .label { width: {{ w }}mm; height: {{ h }}mm; padding: 1.2mm 2mm 0.8mm; box-sizing: border-box; overflow: hidden; page-break-after: always; text-align: center; }
+    .label:last-child { page-break-after: auto; }
+    .org { font-size: {{ h >= 35 ? 7 : 5.8 }}pt; font-weight: bold; white-space: nowrap; overflow: hidden; }
+    .bc { height: {{ h >= 35 ? 16 : 10.5 }}mm; width: {{ w - 16 }}mm; /* тихие зоны Code 128 по ~6 мм с каждой стороны */ margin: 0.6mm auto 0.2mm; display: block; }
+    .inv { font-size: {{ h >= 35 ? 10 : 8.5 }}pt; font-weight: bold; font-family: "DejaVu Sans Mono", monospace; letter-spacing: .3pt; }
+    .name { font-size: {{ h >= 35 ? 7 : 5.8 }}pt; white-space: nowrap; overflow: hidden; }
+</style></head>
+<body>
+{% for l in labels %}
+    <div class="label">
+        <div class="org">{{ l.org }}</div>
+        <img class="bc" src="data:image/png;base64,{{ l.barcode }}">
+        <div class="inv">{{ l.inv }}</div>
+        <div class="name">{{ l.name }}</div>
+    </div>
+{% endfor %}
+</body></html>

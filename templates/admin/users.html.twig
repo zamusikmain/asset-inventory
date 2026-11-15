@@ -1,0 +1,18 @@
+{% extends 'base.html.twig' %}
+{% block title %}Пользователи{% endblock %}
+{% block body %}
+<div class="actions" style="justify-content:space-between"><h1>Пользователи системы</h1><a class="btn primary" href="{{ path('admin_user_new') }}">+ Добавить</a></div>
+<div class="table-wrap"><table>
+    <thead><tr><th>Логин</th><th>ФИО</th><th>Роли</th><th>Последний вход</th><th>Состояние</th><th></th></tr></thead>
+    {% for u in users %}<tr>
+        <td class="mono"><a href="{{ path('admin_user_edit', {id: u.id}) }}">{{ u.username }}</a></td><td>{{ u.fullName }}<div class="small muted">{{ u.email }}</div></td>
+        <td class="small">{% for r in u.storedRoles %}{{ badge(r|replace({'ROLE_': ''})|lower, 'blue') }} {% endfor %}</td>
+        <td class="small">{{ u.lastLoginAt|dt }}</td>
+        <td>{% if not u.active %}{{ badge('отключен', 'gray') }}{% elseif u.locked %}{{ badge('заблокирован до ' ~ u.lockedUntil|dt('H:i'), 'red') }}{% else %}{{ badge('активен', 'green') }}{% endif %}
+            {% if u.mustChangePassword %}{{ badge('смена пароля', 'amber') }}{% endif %}</td>
+        <td class="nowrap">
+            <form method="post" action="{{ path('admin_user_reset', {id: u.id}) }}" class="inline-form" data-confirm="Сбросить пароль {{ u.username }}?"><input type="hidden" name="_token" value="{{ csrf_token('reset' ~ u.id) }}"><button class="btn small">Сброс пароля</button></form>
+            {% if u.locked %}<form method="post" action="{{ path('admin_user_unlock', {id: u.id}) }}" class="inline-form"><input type="hidden" name="_token" value="{{ csrf_token('reset' ~ u.id) }}"><button class="btn small">Разблокировать</button></form>{% endif %}
+        </td></tr>{% endfor %}
+</table></div>
+{% endblock %}

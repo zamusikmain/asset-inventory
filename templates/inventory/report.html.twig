@@ -1,0 +1,33 @@
+{% extends 'base.html.twig' %}
+{% block title %}Отчеты {{ c.number }}{% endblock %}
+{% block body %}
+<div class="actions" style="justify-content:space-between"><h1>Отчеты: {{ c.number }} — {{ c.name }}</h1>
+    <div class="actions no-print"><button class="btn" onclick="print()">Печать</button><a class="btn" href="{{ path('inventory_show', {id: c.id}) }}">К кампании</a></div></div>
+<div class="panel">
+    <h2 style="margin-top:0">Сводный отчет</h2>
+    <table>
+        <tr><th>Ожидалось</th><th>Найдено</th><th>Прогресс</th><th>Сканов</th><th>Не найдено</th><th>Неизвестные</th><th>В другом месте</th><th>Этикетки</th><th>Повреждено</th><th>Списанные</th><th>Изм. места</th><th>Конфликты</th></tr>
+        <tr><td>{{ summary.expected }}</td><td>{{ summary.found }}</td><td>{{ summary.progress }}%</td><td>{{ summary.scans_total }}</td><td>{{ s.missing|length }}</td><td>{{ s.unknown|length }}</td>
+            <td>{{ s.other_place|length }}</td><td>{{ s.label_damaged|length }}</td><td>{{ s.damaged|length }}</td><td>{{ s.written_off|length }}</td><td>{{ s.location_changes|length }}</td><td>{{ summary.conflicts }}</td></tr>
+    </table>
+</div>
+{% set titles = {'missing': 'Отсутствующие активы', 'unknown': 'Неизвестные объекты', 'other_place': 'Активы в другом помещении/офисе', 'label_damaged': 'Поврежденные этикетки',
+    'damaged': 'Поврежденное оборудование', 'written_off': 'Обнаруженные списанные', 'clarify': 'Требуют уточнения', 'location_changes': 'Изменения местоположения (подтверждено IT)'} %}
+{% for key, title in titles %}
+<h2>{{ title }} ({{ s[key]|length }})</h2>
+{% if s[key]|length %}
+<div class="table-wrap"><table>
+    <thead><tr><th>Актив / код</th><th>Наименование</th><th>Ожидаемое</th><th>Фактическое</th><th>Решение</th><th>Комментарий</th></tr></thead>
+    {% for d in s[key] %}<tr><td class="mono">{{ d.asset ? d.asset.inventoryNumber : d.rawCode }}</td><td>{{ d.asset ? d.asset.name }}</td>
+        <td class="small">{{ d.expectedLocation ? d.expectedLocation.pathString : '—' }}</td><td class="small">{{ d.actualLocation ? d.actualLocation.pathString : '—' }}</td>
+        <td>{{ d.statusLabel }}</td><td class="small">{{ d.comment }}</td></tr>{% endfor %}
+</table></div>
+{% else %}<p class="muted">Нет.</p>{% endif %}
+{% endfor %}
+<h2>Найденные активы ({{ s.found|length }})</h2>
+<div class="table-wrap"><table>
+    <thead><tr><th>Инв. номер</th><th>Наименование</th><th>Результат</th><th>Место сканирования</th><th>Время</th><th>Кто</th></tr></thead>
+    {% for sc in s.found %}<tr><td class="mono">{{ sc.asset.inventoryNumber }}</td><td>{{ sc.asset.name }}</td><td>{{ badge(sc.result.label, sc.result.color) }}</td>
+        <td class="small">{{ sc.location ? sc.location.pathString : '—' }}</td><td class="small">{{ sc.scannedAt|dt }}</td><td class="small">{{ sc.scannedByName }}</td></tr>{% endfor %}
+</table></div>
+{% endblock %}

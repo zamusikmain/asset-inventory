@@ -1,0 +1,13 @@
+{% extends 'base.html.twig' %}
+{% block title %}Соответствия импорта{% endblock %}
+{% block body %}
+<h1>Справочник соответствий импорта</h1>
+<p class="muted small">Значения из Excel (статус, расположение, сотрудник), сопоставленные с данными системы. Добавляются из предварительного отчета импорта.</p>
+<div class="table-wrap"><table>
+    <thead><tr><th>Вид</th><th>Значение Excel</th><th>Значение системы</th><th></th></tr></thead>
+    {% for mp in mappings %}<tr><td>{{ {'status': 'Статус', 'location': 'Расположение', 'employee': 'Сотрудник'}[mp.kind] }}</td><td>«{{ mp.sourceValue }}»</td>
+        <td>{% if mp.kind == 'status' %}{{ statuses[mp.targetValue] ?? mp.targetValue }}{% elseif mp.kind == 'location' %}<a href="{{ path('location_show', {id: mp.targetValue}) }}">локация #{{ mp.targetValue }}</a>{% else %}<a href="{{ path('employee_show', {id: mp.targetValue}) }}">сотрудник</a>{% endif %}</td>
+        <td><form method="post" class="inline-form" data-confirm="Удалить соответствие?"><input type="hidden" name="delete" value="{{ mp.id }}"><input type="hidden" name="_token" value="{{ csrf_token('mappings') }}"><button class="btn small danger">✕</button></form></td></tr>
+    {% else %}<tr><td colspan="4" class="muted">Соответствий нет</td></tr>{% endfor %}
+</table></div>
+{% endblock %}

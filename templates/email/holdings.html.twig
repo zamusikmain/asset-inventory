@@ -1,0 +1,31 @@
+<div style="font-family:Segoe UI,Arial,sans-serif;font-size:14px;color:#1d2733;max-width:720px">
+<p>Здравствуйте, {{ employee.name }}!</p>
+<p>Операция: <b>{{ operation }}</b>, {{ date|dt }}.</p>
+{% if doc %}
+<p>Документ: <b>{{ doc.typeLabel }} № {{ doc.number }}</b>. Статус подписи: <b>{{ doc.statusLabel }}</b>{% if doc.signDeadline and doc.status == 'awaiting_signature' %} (подписать до {{ doc.signDeadline|dt('d.m.Y') }}){% endif %}.</p>
+{% if sign_url and doc.status == 'awaiting_signature' %}
+<p><a href="{{ sign_url }}" style="display:inline-block;background:#1f4e79;color:#fff;padding:9px 16px;border-radius:6px;text-decoration:none">Открыть акт и подписать ЭЦП</a></p>
+<p style="font-size:12px;color:#6b7785">Ссылка открывается только из корпоративной сети. Для подписания потребуется NCALayer и ваш ключ ЭЦП.</p>
+{% endif %}
+{% endif %}
+{% if added %}
+<h3 style="font-size:15px">Выдано</h3>
+<table cellpadding="5" style="border-collapse:collapse;width:100%;font-size:13px">
+{% for i in added %}<tr style="border-bottom:1px solid #e1e6ec"><td style="font-family:Consolas,monospace">{{ i.inventory_number }}</td><td>{{ i.name }}</td><td>{{ i.serial_number }}</td></tr>{% endfor %}
+</table>
+{% endif %}
+{% if returned %}
+<h3 style="font-size:15px">Возвращено</h3>
+<table cellpadding="5" style="border-collapse:collapse;width:100%;font-size:13px">
+{% for i in returned %}<tr style="border-bottom:1px solid #e1e6ec"><td style="font-family:Consolas,monospace">{{ i.inventory_number }}</td><td>{{ i.name }}</td><td>{{ i.serial_number }}</td></tr>{% endfor %}
+</table>
+{% endif %}
+<h3 style="font-size:15px">Полный перечень закрепленного за вами оборудования ({{ current|length }})</h3>
+{% if current %}
+<table cellpadding="5" style="border-collapse:collapse;width:100%;font-size:13px">
+<tr style="background:#f5f7fa"><th align="left">Инв. номер</th><th align="left">Наименование</th><th align="left">Серийный №</th></tr>
+{% for i in current %}<tr style="border-bottom:1px solid #e1e6ec"><td style="font-family:Consolas,monospace">{{ i.inventory_number }}</td><td>{{ i.name }}</td><td>{{ i.serial_number }}</td></tr>{% endfor %}
+</table>
+{% else %}<p>За вами не закреплено оборудования.</p>{% endif %}
+<p style="margin-top:18px">Если перечень не соответствует фактическому, сообщите в IT: {{ it_contacts }}</p>
+</div>

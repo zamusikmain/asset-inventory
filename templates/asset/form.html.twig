@@ -1,0 +1,61 @@
+{% extends 'base.html.twig' %}
+{% block title %}{{ is_new ? 'Новый актив' : 'Редактирование ' ~ asset.inventoryNumber }}{% endblock %}
+{% block body %}
+<h1>{{ is_new ? 'Новый актив' : 'Редактирование: ' ~ asset.inventoryNumber }}</h1>
+{{ form_start(form, {attr: {class: 'panel', id: 'asset-form'}}) }}
+<div class="form-grid">
+    {{ form_row(form.inventoryNumber) }}
+    {{ form_row(form.fullInventoryNumber) }}
+    {{ form_row(form.barcode) }}
+    {{ form_row(form.type) }}
+    {{ form_row(form.name) }}
+    {{ form_row(form.manufacturer) }}
+    {{ form_row(form.model) }}
+    {{ form_row(form.serialNumber) }}
+    {{ form_row(form.condition) }}
+    {{ form_row(form.bundle) }}
+    {% if is_new %}{{ form_row(form.location) }}{{ form_row(form.initialStatus) }}{% endif %}
+    {{ form_row(form.sourceDate) }}
+    {{ form_row(form.external1cId) }}
+</div>
+<h3>Характеристики типа</h3>
+<div id="attrs" class="form-grid"><p class="muted">Выберите тип, чтобы заполнить настраиваемые атрибуты (RAM, SSD, диагональ и т.д.).</p></div>
+{{ form_row(form.comment) }}
+<h3>BitLocker / FileVault</h3>
+<p class="help">По умолчанию recovery key в систему не переносится: хранится только признак наличия, место хранения и дата проверки (п. 9 ТЗ).</p>
+<div class="form-grid">
+    {{ form_row(form.hasRecoveryKey) }}
+    {{ form_row(form.recoveryKeyStorage) }}
+    {{ form_row(form.recoveryKeyDeviceId) }}
+    {{ form_row(form.recoveryKeyCheckedAt) }}
+</div>
+{% if not is_new %}<p class="help">Статус, сотрудник и местоположение меняются операциями на карточке актива — с сохранением истории.</p>{% endif %}
+<div class="actions">
+    <button class="btn primary">Сохранить</button>
+    <a class="btn" href="{{ is_new ? path('asset_index') : path('asset_show', {id: asset.id}) }}">Отмена</a>
+</div>
+{{ form_end(form) }}
+{% endblock %}
+{% block scripts %}
+<script>
+const TYPES = {{ types|json_encode|raw }};
+const CURRENT = {{ current_attrs|json_encode(constant('JSON_FORCE_OBJECT'))|raw }};
+const typeSel = document.getElementById('{{ form.type.vars.id }}');
+const box = document.getElementById('attrs');
+function renderAttrs() {
+  const defs = TYPES[typeSel.value] || [];
+  if (!defs.length) { box.innerHTML = '<p class="muted">Для выбранного типа нет настраиваемых атрибутов.</p>'; return; }
+  box.innerHTML = defs.map(d => {
+    const v = CURRENT[d.id] ?? '';
+    const name = `attrs[${d.id}]`;
+    let input;
+    if (d.type === 'select') input = `<select name="${name}"><option value=""></option>${d.options.map(o => `<option ${o === v ? 'selected' : ''}>${App.esc(o)}</option>`).join('')}</select>`;
+    else if (d.type === 'bool') input = `<select name="${name}"><option value=""></option><option value="1" ${v === '1' ? 'selected' : ''}>Да</option><option value="0" ${v === '0' ? 'selected' : ''}>Нет</option></select>`;
+    else input = `<input type="${d.type === 'date' ? 'date' : (d.type === 'int' || d.type === 'decimal' ? 'number' : 'text')}" ${d.type === 'decimal' ? 'step="any"' : ''} name="${name}" value="${App.esc(v)}" ${d.required ? 'required' : ''}>`;
+    return `<div class="field"><label>${App.esc(d.label)}${d.unit ? ', ' + App.esc(d.unit) : ''}${d.required ? ' *' : ''}</label>${input}</div>`;
+  }).join('');
+}
+typeSel.addEventListener('change', renderAttrs);
+renderAttrs();
+</script>
+{% endblock %}

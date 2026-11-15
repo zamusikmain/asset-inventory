@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="ru"><head><meta charset="UTF-8">
+<style>
+    @page { margin: 14mm 12mm; }
+    body { font-family: "DejaVu Sans", sans-serif; font-size: 8.5pt; }
+    h1 { font-size: 12pt; text-align: center; margin: 0; } h2 { font-size: 10pt; margin: 12px 0 4px; }
+    table { width: 100%; border-collapse: collapse; } th, td { border: 0.5pt solid #555; padding: 2px 4px; vertical-align: top; }
+    th { background: #eee; } .meta td { border: none; } .mono { font-family: "DejaVu Sans Mono", monospace; }
+    .sign td { border: none; padding-top: 16px; }
+</style></head><body>
+<div style="text-align:right">{{ org }}</div>
+<h1>ИТОГОВЫЙ АКТ ИНВЕНТАРИЗАЦИИ ОБОРУДОВАНИЯ</h1>
+<div style="text-align:center">№ {{ doc.number }} от {{ doc.createdAt|dt('d.m.Y') }} · кампания {{ campaign.number }} «{{ campaign.name }}»</div>
+<table class="meta" style="margin-top:8px">
+    <tr><td style="width:25%">Основание:</td><td>{{ campaign.basis ?: '—' }}</td></tr>
+    <tr><td>Период:</td><td>{{ campaign.startDate|dt('d.m.Y') }} — {{ campaign.endDate|dt('d.m.Y') }}</td></tr>
+    <tr><td>Охват:</td><td>{% for l in campaign.locations %}{{ l.pathString }}{{ not loop.last ? '; ' }}{% else %}все локации{% endfor %}</td></tr>
+</table>
+<h2>Сводка</h2>
+<table>
+    <tr><th>Ожидалось</th><th>Найдено</th><th>Не найдено</th><th>Неизвестные</th><th>В другом месте</th><th>Поврежд. этикетки</th><th>Повреждено</th><th>Списанные найдены</th><th>Изменений места</th></tr>
+    <tr><td>{{ summary.expected }}</td><td>{{ summary.found }}</td><td>{{ s.missing|length }}</td><td>{{ s.unknown|length }}</td><td>{{ s.other_place|length }}</td>
+        <td>{{ s.label_damaged|length }}</td><td>{{ s.damaged|length }}</td><td>{{ s.written_off|length }}</td><td>{{ s.location_changes|length }}</td></tr>
+</table>
+{% set sections = {
+    'missing': 'Отсутствующие активы', 'unknown': 'Неизвестные объекты', 'other_place': 'Активы в другом помещении/офисе',
+    'label_damaged': 'Поврежденные/отсутствующие этикетки', 'damaged': 'Поврежденное оборудование', 'written_off': 'Обнаруженные списанные объекты',
+    'location_changes': 'Подтвержденные изменения местоположения'} %}
+{% for key, title in sections %}
+    {% if s[key]|length %}
+    <h2>{{ title }} ({{ s[key]|length }})</h2>
+    <table><tr><th style="width:12%">Инв. номер / код</th><th>Наименование</th><th>Ожидаемое место</th><th>Фактическое место</th><th style="width:12%">Решение</th><th>Комментарий</th></tr>
+        {% for d in s[key] %}<tr><td class="mono">{{ d.asset ? d.asset.inventoryNumber : d.rawCode }}</td><td>{{ d.asset ? d.asset.name : '—' }}</td>
+            <td>{{ d.expectedLocation ? d.expectedLocation.pathString : '—' }}</td><td>{{ d.actualLocation ? d.actualLocation.pathString : '—' }}</td>
+            <td>{{ d.statusLabel }}</td><td>{{ d.comment }}</td></tr>{% endfor %}
+    </table>
+    {% endif %}
+{% endfor %}
+<h2>Найденные активы ({{ s.found|length }})</h2>
+<table><tr><th style="width:12%">Инв. номер</th><th>Наименование</th><th>Место сканирования</th><th>Результат</th><th>Время</th><th>Проверяющий</th></tr>
+    {% for sc in s.found %}<tr><td class="mono">{{ sc.asset.inventoryNumber }}</td><td>{{ sc.asset.name }}</td><td>{{ sc.location ? sc.location.pathString : '—' }}</td>
+        <td>{{ sc.result.label }}</td><td>{{ sc.scannedAt|dt('d.m.Y H:i') }}</td><td>{{ sc.scannedByName }}</td></tr>{% endfor %}
+</table>
+<h2>Комиссия</h2>
+<table class="sign">
+    {% for m in campaign.commission %}
+        <tr><td style="width:40%">{{ m.chairman ? 'Председатель' : 'Член комиссии' }}: {{ m.user.fullName }}</td>
+            <td>{{ m.confirmedAt ? 'итоги подтверждены в системе ' ~ m.confirmedAt|dt : '' }}{% if m.comment %} — {{ m.comment }}{% endif %}</td>
+            <td style="width:25%">_______________________</td></tr>
+    {% endfor %}
+</table>
+</body></html>

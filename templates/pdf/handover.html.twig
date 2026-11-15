@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="ru"><head><meta charset="UTF-8">
+<style>
+    @page { margin: 18mm 14mm 18mm 18mm; }
+    body { font-family: "DejaVu Sans", sans-serif; font-size: 9.5pt; color: #000; }
+    h1 { font-size: 13pt; text-align: center; margin: 0 0 4px; }
+    .center { text-align: center; } .right { text-align: right; } .small { font-size: 8pt; color: #333; }
+    table { width: 100%; border-collapse: collapse; margin: 8px 0; }
+    th, td { border: 0.6pt solid #444; padding: 3px 4px; vertical-align: top; }
+    th { background: #eee; font-size: 8.5pt; }
+    .meta td { border: none; padding: 1px 0; }
+    .sign td { border: none; padding-top: 18px; width: 50%; vertical-align: top; }
+    .line { border-bottom: 0.6pt solid #000; height: 14px; }
+    .mono { font-family: "DejaVu Sans Mono", monospace; }
+    .box { border: 0.6pt solid #888; padding: 6px; margin-top: 10px; font-size: 8.5pt; }
+</style></head>
+<body>
+{% set h = doc.header %}
+<div class="right small">{{ h.org }}</div>
+<h1>{{ doc.type == 'issue' ? 'АКТ ПРИЕМА-ПЕРЕДАЧИ ОБОРУДОВАНИЯ' : 'АКТ ВОЗВРАТА ОБОРУДОВАНИЯ' }}</h1>
+<div class="center">№ {{ doc.number }} от {{ doc.createdAt|dt('d.m.Y') }}</div>
+
+<table class="meta" style="margin-top:12px">
+    <tr><td style="width:38%">{{ doc.type == 'issue' ? 'Передает (IT):' : 'Принимает (IT):' }}</td><td><b>{{ h.it.name }}</b>{% if h.it.email %}, {{ h.it.email }}{% endif %}</td></tr>
+    <tr><td>{{ doc.type == 'issue' ? 'Принимает (сотрудник):' : 'Возвращает (сотрудник):' }}</td><td><b>{{ h.employee.name }}</b>{% if h.employee.name_en and h.employee.name_en != h.employee.name %} ({{ h.employee.name_en }}){% endif %}</td></tr>
+    <tr><td>Должность:</td><td>{{ h.employee.position ?: '—' }}</td></tr>
+    <tr><td>Подразделение:</td><td>{{ h.employee.department ?: '—' }}</td></tr>
+    {% if doc.type == 'return' %}<tr><td>Статус после возврата / место:</td><td>{{ h.return_status }}{% if h.return_location %}, {{ h.return_location }}{% endif %}</td></tr>{% endif %}
+</table>
+
+<p>{{ doc.type == 'issue' ? 'Сотрудник принимает во временное пользование для исполнения трудовых обязанностей следующее оборудование:' : 'Сотрудник возвращает следующее оборудование:' }}</p>
+<table>
+    <thead><tr><th style="width:4%">№</th><th style="width:14%">Инв. номер</th><th>Наименование</th><th style="width:18%">Модель</th><th style="width:15%">Серийный №</th><th style="width:14%">Комплектность</th><th style="width:10%">Состояние</th></tr></thead>
+    <tbody>
+    {% for i in doc.items %}
+        <tr><td class="center">{{ loop.index }}</td><td class="mono">{{ i.inventory_number }}</td><td>{{ i.name }}</td><td>{{ i.manufacturer }} {{ i.model }}</td>
+            <td class="mono">{{ i.serial_number ?: '—' }}</td><td>{{ i.bundle ?: '—' }}</td><td>{{ i.condition ?: 'исправно' }}</td></tr>
+    {% endfor %}
+    </tbody>
+</table>
+<p>Всего позиций: <b>{{ doc.items|length }}</b>.</p>
+{% if h.comment %}<p>Примечание: {{ h.comment }}</p>{% endif %}
+
+{% if doc.currentList|length > 0 %}
+<p class="small">Полный перечень оборудования, закрепленного за сотрудником после операции ({{ doc.currentList|length }} поз.):
+    {% for i in doc.currentList %}{{ i.inventory_number }}{{ not loop.last ? ', ' }}{% endfor %}.</p>
+{% else %}
+<p class="small">После операции за сотрудником не закреплено оборудования.</p>
+{% endif %}
+
+<table class="sign">
+    <tr>
+        <td>{{ doc.type == 'issue' ? 'Передал' : 'Принял' }} (IT):<br><br><div class="line"></div><span class="small">{{ h.it.name }}</span></td>
+        <td>{{ doc.type == 'issue' ? 'Принял' : 'Сдал' }} (сотрудник):<br><br><div class="line"></div><span class="small">{{ h.employee.name }}</span></td>
+    </tr>
+</table>
+
+<div class="box">
+    Документ подписывается сотрудником электронной цифровой подписью НУЦ РК. Сведения о сертификате, подписи, дате и
+    времени подписания хранятся в системе учета вместе с документом и контрольной суммой файла.
+    Срок подписания: до {{ doc.signDeadline|dt('d.m.Y') }}. Идентификатор документа: <span class="mono">{{ doc.id }}</span>.
+</div>
+</body></html>

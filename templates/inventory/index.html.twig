@@ -1,0 +1,16 @@
+{% extends 'base.html.twig' %}
+{% block title %}Инвентаризация{% endblock %}
+{% block body %}
+<div class="actions" style="justify-content:space-between"><h1>Кампании инвентаризации</h1>
+    {% if is_granted('ROLE_INVENTORY_INITIATOR') %}<a class="btn primary" href="{{ path('inventory_new') }}">+ Новая кампания</a>{% endif %}</div>
+<div class="table-wrap"><table>
+    <thead><tr><th>Номер</th><th>Название</th><th>Сроки</th><th>Охват</th><th>Статус</th><th>Инициатор</th><th></th></tr></thead>
+    {% for c in campaigns %}<tr><td class="mono"><a href="{{ path('inventory_show', {id: c.id}) }}">{{ c.number }}</a></td><td>{{ c.name }}</td>
+        <td class="small">{{ c.startDate|dt('d.m.Y') }} — {{ c.endDate|dt('d.m.Y') }}</td>
+        <td class="small">{% for l in c.locations %}{{ l.name }}{{ not loop.last ? ', ' }}{% else %}все{% endfor %}</td>
+        <td>{{ badge(c.status.label, c.status.value in ['started', 'in_progress'] ? 'blue' : (c.status.value in ['approved', 'closed'] ? 'green' : (c.status.value == 'cancelled' ? 'gray' : 'amber'))) }}</td>
+        <td class="small">{{ c.initiator }}</td>
+        <td>{% if c.status.acceptsScans %}<a class="btn small" href="{{ path('inventory_scan', {id: c.id}) }}">Сканировать</a>{% endif %}</td></tr>
+    {% else %}<tr><td colspan="7" class="muted">Кампаний нет</td></tr>{% endfor %}
+</table></div>
+{% endblock %}

@@ -1,0 +1,79 @@
+{% extends 'base.html.twig' %}
+{% block title %}{{ doc.number }}{% endblock %}
+{% block body %}
+<div class="actions" style="justify-content:space-between">
+    <h1>{{ doc.typeLabel }} № {{ doc.number }}</h1>
+    <div class="actions">
+        <a class="btn" href="{{ path('handover_pdf', {id: doc.id}) }}" target="_blank">Открыть PDF</a>
+        {% if doc.status == 'awaiting_signature' %}
+            <form method="post" action="{{ path('handover_resend', {id: doc.id}) }}" class="inline-form"><input type="hidden" name="_token" value="{{ csrf_token('resend' ~ doc.id) }}"><button class="btn">Отправить уведомление повторно</button></form>
+        {% endif %}
+    </div>
+</div>
+<div class="grid g2">
+    <div class="panel"><dl class="props">
+        <dt>Дата</dt><dd>{{ doc.createdAt|dt }}</dd>
+        <dt>Сотрудник</dt><dd>{% if doc.employee %}<a href="{{ path('employee_show', {id: doc.employee.id}) }}">{{ doc.header.employee.name }}</a>{% endif %}<div class="small muted">{{ doc.header.employee.position ?? '' }} {{ doc.header.employee.department ?? '' }}</div></dd>
+        <dt>IT-специалист</dt><dd>{{ doc.header.it.name }}</dd>
+        <dt>Статус подписи</dt><dd>{{ badge(doc.statusLabel, doc.status == 'signed' ? 'green' : (doc.status == 'awaiting_signature' ? 'amber' : 'red')) }}{% if doc.signedAt %} {{ doc.signedAt|dt }}{% endif %}</dd>
+        <dt>Срок подписания</dt><dd>{{ doc.signDeadline|dt('d.m.Y') }}</dd>
+        <dt>SHA-256 PDF</dt><dd class="mono small" style="word-break:break-all">{{ doc.pdfSha256 }}</dd>
+        {% if doc.header.comment ?? null %}<dt>Комментарий</dt><dd>{{ doc.header.comment }}</dd>{% endif %}
+    </dl></div>
+    <div class="panel">
+        <h3 style="margin-top:0">Подписание ЭЦП (NCALayer)</h3>
+        {% if doc.status == 'awaiting_signature' or doc.status == 'rejected' %}
+            <p class="small">Ссылка для сотрудника (отправлена в уведомлении):</p>
+            <input type="text" readonly value="{{ sign_url }}" onclick="this.select()" class="small mono">
+            <p class="small muted">Если сотрудник подписывает на этом ПК — нажмите кнопку (требуется запущенный NCALayer и ключ сотрудника).</p>
+            <button class="btn primary" id="sign-btn">Подписать здесь</button>
+            <div id="sign-msg"></div>
+        {% endif %}
+        <p class="small muted">Режим проверки подписи: {{ verify_mode == 'ncanode' ? 'NCANode (полная проверка, OCSP)' : 'базовый (OpenSSL), цепочка и отзыв не проверяются' }}.</p>
+        {% for s in doc.signatures %}
+            <div class="panel" style="margin:8px 0">
+                {{ badge(s.verificationLabel, s.valid ? 'green' : (s.verificationStatus == 'pending' ? 'amber' : 'red')) }}
+                <dl class="props small" style="margin-top:8px">
+                    <dt>Получена</dt><dd>{{ s.createdAt|dt }}</dd>
+                    <dt>Владелец</dt><dd>{{ s.certSubject ?: '—' }}</dd>
+                    <dt>ИИН</dt><dd>{{ s.iin ?: '—' }}</dd>
+                    <dt>Издатель</dt><dd>{{ s.certIssuer ?: '—' }}</dd>
+                    <dt>Серийный №</dt><dd class="mono">{{ s.certSerial ?: '—' }}</dd>
+                    <dt>Действует</dt><dd>{{ s.certValidFrom|dt('d.m.Y') }} — {{ s.certValidTo|dt('d.m.Y') }}</dd>
+                    <dt>Примечание</dt><dd>{{ s.verificationDetails.note ?? (s.verificationDetails.error ?? '') }}</dd>
+                </dl>
+                {% if s.verificationStatus == 'pending' and is_granted('ROLE_ADMIN') %}
+                    <form method="post" action="{{ path('handover_signature_confirm', {id: s.id}) }}" class="actions">
+                        <input type="text" name="comment" placeholder="Как проверено (напр. ezSigner)" required style="flex:1">
+                        <input type="hidden" name="_token" value="{{ csrf_token('sigconfirm' ~ s.id) }}"><button class="btn small">Подтвердить вручную</button></form>
+                {% endif %}
+            </div>
+        {% endfor %}
+    </div>
+</div>
+<h2>Позиции акта</h2>
+<div class="table-wrap"><table>
+    <thead><tr><th>№</th><th>Инв. номер</th><th>Наименование</th><th>Модель</th><th>Серийный №</th><th>Комплектность</th><th>Состояние</th></tr></thead>
+    {% for i in doc.items %}<tr><td>{{ loop.index }}</td><td class="mono"><a href="{{ path('asset_show', {id: i.id}) }}">{{ i.inventory_number }}</a></td><td>{{ i.name }}</td>
+        <td>{{ i.manufacturer }} {{ i.model }}</td><td class="mono small">{{ i.serial_number }}</td><td class="small">{{ i.bundle ?: '—' }}</td><td>{{ i.condition ?: '—' }}</td></tr>{% endfor %}
+</table></div>
+<h2>Полный перечень за сотрудником после операции ({{ doc.currentList|length }})</h2>
+<div class="table-wrap"><table>{% for i in doc.currentList %}<tr><td class="mono">{{ i.inventory_number }}</td><td>{{ i.name }}</td><td class="mono small">{{ i.serial_number }}</td></tr>{% else %}<tr><td class="muted">Пусто</td></tr>{% endfor %}</table></div>
+{% endblock %}
+{% block scripts %}
+<script src="{{ asset('js/ncalayer.js') }}"></script>
+<script>
+document.getElementById('sign-btn')?.addEventListener('click', async (e) => {
+  const btn = e.target, msg = document.getElementById('sign-msg');
+  btn.disabled = true; msg.innerHTML = '<p class="muted">Получение документа…</p>';
+  try {
+    const data = await App.api('{{ path('sign_document_data', {id: doc.id, token: sign_token}) }}');
+    msg.innerHTML = '<p class="muted">Выберите ключ в окне NCALayer…</p>';
+    const cms = await NCALayer.signCms(data.data);
+    const r = await App.api('{{ path('handover_sign', {id: doc.id}) }}', {method: 'POST', body: JSON.stringify({cms})});
+    msg.innerHTML = `<div class="flash ${r.verification === 'valid' ? 'success' : 'warning'}">${App.esc(r.label)}${r.details ? ': ' + App.esc(r.details) : ''}</div>`;
+    setTimeout(() => location.reload(), 1500);
+  } catch (err) { msg.innerHTML = `<div class="flash error">${App.esc(err.message)}</div>`; btn.disabled = false; }
+});
+</script>
+{% endblock %}

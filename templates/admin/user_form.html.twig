@@ -1,0 +1,10 @@
+{% extends 'base.html.twig' %}
+{% block title %}{{ is_new ? 'Новый пользователь' : u.username }}{% endblock %}
+{% block body %}
+<h1>{{ is_new ? 'Новый пользователь' : 'Пользователь ' ~ u.username }}</h1>
+{{ form_start(form, {attr: {class: 'panel', style: 'max-width:640px'}}) }}
+{{ form_widget(form) }}
+{% if is_new %}<p class="help">Будет сгенерирован временный сложный пароль; при первом входе пользователь обязан его сменить.</p>{% endif %}
+<div class="actions"><button class="btn primary">Сохранить</button><a class="btn" href="{{ path('admin_users') }}">Отмена</a></div>
+{{ form_end(form) }}
+{% endblock %}

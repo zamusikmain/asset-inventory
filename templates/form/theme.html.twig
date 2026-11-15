@@ -1,0 +1,31 @@
+{% use 'form_div_layout.html.twig' %}
+
+{% block form_row %}
+    <div class="field">
+        {% if not compound or form.vars.expanded is defined and form.vars.expanded %}{{ form_label(form) }}{% else %}{{ form_label(form) }}{% endif %}
+        {{ form_widget(form) }}
+        {% if help is not empty %}<div class="help">{{ help }}</div>{% endif %}
+        {{ form_errors(form) }}
+    </div>
+{% endblock %}
+
+{% block form_errors %}
+    {% for error in errors %}<div class="form-error">{{ error.message }}</div>{% endfor %}
+{% endblock %}
+
+{% block checkbox_row %}
+    <div class="field">
+        <label style="font-weight:normal">{{ form_widget(form) }} {{ label }}</label>
+        {{ form_errors(form) }}
+    </div>
+{% endblock %}
+
+{% block choice_widget_expanded %}
+    <div {{ block('widget_container_attributes') }}>
+        {% for child in form %}
+            <label style="font-weight:normal;display:block">{{ form_widget(child) }} {{ child.vars.label }}</label>
+        {% endfor %}
+    </div>
+{% endblock %}
+
+{% block form_help %}{% endblock %}

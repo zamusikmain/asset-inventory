@@ -1,0 +1,128 @@
+{% extends 'base.html.twig' %}
+{% import '_macros.html.twig' as m %}
+{% block title %}Оборудование{% endblock %}
+{% block body %}
+<div class="actions" style="justify-content:space-between">
+    <h1>Реестр оборудования</h1>
+    <div class="actions">
+        {% if is_granted('ROLE_IT') %}
+            <a class="btn primary" href="{{ path('asset_new') }}">+ Добавить</a>
+            <a class="btn" href="{{ path('asset_export', f) }}">Экспорт XLSX</a>
+            <a class="btn" href="#" data-modal="labels-modal">Печать этикеток</a>
+        {% endif %}
+        {% if is_granted('ROLE_ADMIN') %}
+            <a class="btn danger" href="#" data-modal="delete-modal">Удалить…</a>
+        {% endif %}
+    </div>
+</div>
+{% set admin = is_granted('ROLE_ADMIN') %}
+<form class="filters panel" method="get" id="filters">
+    {% if f.sort is defined %}<input type="hidden" name="sort" value="{{ f.sort }}"><input type="hidden" name="dir" value="{{ f.dir ?? 'asc' }}">{% endif %}
+    <div class="field" style="flex:2;min-width:220px"><label>Поиск по всем полям</label><input type="search" name="q" value="{{ f.q ?? '' }}" placeholder="Инв. номер, серийный, наименование, ФИО"></div>
+    <div class="field"><label>Тип</label><select name="type" onchange="this.form.requestSubmit()"><option value="">Все</option>
+        {% for t in types %}<option value="{{ t.id }}" {{ (f.type ?? '') == t.id ~ '' ? 'selected' }}>{{ t }}</option>{% endfor %}</select></div>
+    <div class="field"><label style="font-weight:normal"><input type="checkbox" name="archived" value="1" {{ f.archived is defined ? 'checked' }} onchange="this.form.requestSubmit()"> вкл. архив</label></div>
+    <button class="btn primary">Применить</button>
+    <a class="btn" href="{{ path('asset_index') }}">Сбросить</a>
+    <span class="help" style="flex-basis:100%;margin:0">Фильтры по столбцам — под заголовками таблицы (Enter или выбор значения применяет). Клик по заголовку — сортировка.</span>
+</form>
+{% macro sh(label, key, f) %}{% set cur = (f.sort ?? 'inv') == key %}<a href="{{ path('asset_index', f|merge({sort: key, dir: cur and (f.dir ?? 'asc') == 'asc' ? 'desc' : 'asc'})) }}">{{ label }}{% if cur %} {{ (f.dir ?? 'asc') == 'desc' ? '▼' : '▲' }}{% endif %}</a>{% endmacro %}
+{% macro tf(key, f, ph) %}<input type="text" name="{{ key }}" value="{{ attribute(f, key) ?? '' }}" form="filters" placeholder="{{ ph|default('фильтр') }}">{% endmacro %}
+<div class="table-wrap">
+<table class="registry">
+    <thead>
+    <tr>
+        {% if admin %}<th style="width:1%"><input type="checkbox" id="del-all-page" title="Выбрать все на странице"></th>{% endif %}
+        <th>№</th>
+        <th>{{ _self.sh('Дата', 'date', f) }}</th>
+        <th>{{ _self.sh('Инв. номер полный', 'full', f) }}</th>
+        <th>{{ _self.sh('Инв. номер', 'inv', f) }}</th>
+        <th>{{ _self.sh('Наименование', 'name', f) }}</th>
+        <th>{{ _self.sh('ФИО ENG', 'emp_en', f) }}</th>
+        <th>{{ _self.sh('ФИО RUS', 'emp_ru', f) }}</th>
+        <th>{{ _self.sh('Статус', 'status', f) }}</th>
+        <th>{{ _self.sh('Расположение', 'loc', f) }}</th>
+        <th>{{ _self.sh('Примечание', 'comment', f) }}</th>
+        <th title="BitLocker/FileVault Key — хранится только признак наличия (п. 9)">{{ _self.sh('BitLocker/FileVault', 'rk', f) }}</th>
+    </tr>
+    <tr class="col-filters">
+        {% if admin %}<th></th>{% endif %}
+        <th></th>
+        <th><input type="date" name="date" value="{{ f.date ?? '' }}" form="filters" onchange="this.form.requestSubmit()"></th>
+        <th>{{ _self.tf('full', f) }}</th>
+        <th>{{ _self.tf('inv', f) }}</th>
+        <th>{{ _self.tf('name', f) }}</th>
+        <th>{{ _self.tf('emp_en', f) }}</th>
+        <th>{{ _self.tf('emp_ru', f) }}</th>
+        <th><select name="status" form="filters" onchange="this.form.requestSubmit()"><option value="">Все</option>
+            {% for s in asset_statuses() %}<option value="{{ s.value }}" {{ (f.status ?? '') == s.value ? 'selected' }}>{{ s.label }}</option>{% endfor %}</select></th>
+        <th><select name="location" form="filters" onchange="this.form.requestSubmit()"><option value="">Все</option>
+            {% for t in locations %}<option value="{{ t.node.id }}" {{ (f.location ?? '') == t.node.id ~ '' ? 'selected' }}>{{ '— '|repeat(t.depth) }}{{ t.node.name }}</option>{% endfor %}</select></th>
+        <th>{{ _self.tf('comment', f) }}</th>
+        <th><select name="rk" form="filters" onchange="this.form.requestSubmit()"><option value="">Все</option>
+            <option value="1" {{ (f.rk ?? '') == '1' ? 'selected' }}>Есть</option><option value="0" {{ (f.rk ?? '') == '0' ? 'selected' }}>Нет</option></select></th>
+    </tr>
+    </thead>
+    <tbody>
+    {% for a in pager %}
+        <tr>
+            {% if admin %}<td><input type="checkbox" class="del-cb" name="ids[]" value="{{ a.id }}" form="delete-form"></td>{% endif %}
+            <td class="small muted">{{ (pager.page - 1) * pager.perPage + loop.index }}</td>
+            <td class="small nowrap">{{ a.sourceDate ? a.sourceDate|date('d.m.Y') : '—' }}</td>
+            <td class="mono small">{{ a.fullInventoryNumber ?: '—' }}</td>
+            <td class="mono nowrap"><a href="{{ path('asset_show', {id: a.id}) }}">{{ a.inventoryNumber }}</a>{% if a.bundle %} <span class="badge gray" title="Комплект {{ a.bundle.name }}">К</span>{% endif %}</td>
+            <td>{{ a.name }}{% if a.model %}<div class="small muted">{{ a.manufacturer }} {{ a.model }}</div>{% endif %}</td>
+            <td>{% if a.employee %}{% if is_granted('ROLE_IT') %}<a href="{{ path('employee_show', {id: a.employee.id}) }}">{{ a.employee.displayName }}</a>{% else %}{{ a.employee.displayName }}{% endif %}{% else %}—{% endif %}</td>
+            <td>{{ a.employee ? (a.employee.fullNameRu ?: '—') : '—' }}</td>
+            <td>{{ a.status|status_badge }}</td>
+            <td class="small">{{ a.location ? a.location.pathString : '—' }}</td>
+            <td class="small" title="{{ a.comment }}">{{ a.comment ? (a.comment|length > 80 ? a.comment|slice(0, 80) ~ '…' : a.comment) : '—' }}</td>
+            <td class="small">{% if a.hasRecoveryKey %}<span class="badge green">Есть</span>{% else %}<span class="muted">Нет</span>{% endif %}</td>
+        </tr>
+    {% else %}
+        <tr><td colspan="{{ admin ? 12 : 11 }}" class="muted">Ничего не найдено.</td></tr>
+    {% endfor %}
+    </tbody>
+</table>
+</div>
+{{ m.pager(pager, 'asset_index', f) }}
+
+<div class="modal" id="labels-modal"><div class="box">
+    <h2 style="margin-top:0">Пакетная печать этикеток</h2>
+    <form method="post" action="{{ path('asset_labels_batch') }}" target="_blank">
+        <div class="field"><label>Инвентарные номера (через пробел, запятую или с новой строки; можно сканером)</label>
+            <textarea name="codes" rows="6" class="mono"></textarea></div>
+        <div class="field"><label>Формат этикетки Brother QL-810W</label>
+            <select name="format"><option value="62x29">62 × 29 мм</option><option value="62x40">62 × 40 мм</option><option value="29x90">29 × 90 мм</option></select></div>
+        <input type="hidden" name="_token" value="{{ csrf_token('labels_batch') }}">
+        <div class="actions"><button class="btn primary">Сформировать PDF</button><button type="button" class="btn" data-close>Закрыть</button></div>
+        <p class="help">PDF печатается через установленный драйвер Brother: масштаб 100%, размер бумаги — как у этикетки.</p>
+    </form>
+</div></div>
+
+{% if is_granted('ROLE_ADMIN') %}
+<div class="modal" id="delete-modal"><div class="box">
+    <h2 style="margin-top:0">Безвозвратное удаление активов</h2>
+    <form method="post" action="{{ path('asset_delete') }}" id="delete-form" data-confirm="Удалить активы безвозвратно? Вместе с ними удалятся история перемещений, закрепления, файлы и recovery key. Отменить нельзя.">
+        <p class="help">Отметьте активы галочками в таблице или удалите все, что подходят под текущий фильтр. Если актив нужно убрать из учета, но сохранить историю, лучше смените его статус на «Списано».</p>
+        {% for k, v in f %}<input type="hidden" name="f[{{ k }}]" value="{{ v }}">{% endfor %}
+        <div class="field"><label>Подтвердите паролем</label><input type="password" name="password" required autocomplete="current-password"></div>
+        <input type="hidden" name="_token" value="{{ csrf_token('asset_delete') }}">
+        <div class="actions">
+            <button class="btn danger" name="mode" value="selected" id="del-selected">Удалить выбранные (<span id="del-count">0</span>)</button>
+            <button class="btn danger" name="mode" value="all">Удалить все по фильтру ({{ pager.total }})</button>
+            <button type="button" class="btn" data-close>Отмена</button>
+        </div>
+    </form>
+</div></div>
+<script>
+(() => {
+  const cbs = () => [...document.querySelectorAll('.del-cb')];
+  const upd = () => { const n = cbs().filter(c => c.checked).length; document.getElementById('del-count').textContent = n; document.getElementById('del-selected').disabled = n === 0; };
+  document.getElementById('del-all-page')?.addEventListener('change', e => { cbs().forEach(c => c.checked = e.target.checked); upd(); });
+  document.addEventListener('change', e => { if (e.target.classList.contains('del-cb')) upd(); });
+  upd();
+})();
+</script>
+{% endif %}
+{% endblock %}

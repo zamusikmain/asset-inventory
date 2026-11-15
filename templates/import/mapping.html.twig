@@ -1,0 +1,26 @@
+{% extends 'base.html.twig' %}
+{% block title %}Импорт: сопоставление{% endblock %}
+{% block body %}
+<h1>Импорт «{{ job.originalName }}»: структура и сопоставление</h1>
+<form method="post" class="panel actions">
+    <div class="field" style="margin:0"><label>Лист</label><select name="sheet">{% for s in sheets %}<option {{ s == job.sheetName ? 'selected' }}>{{ s }}</option>{% endfor %}</select></div>
+    <div class="field" style="margin:0;max-width:160px"><label>Строка заголовков</label><input type="number" name="header_row" value="{{ job.headerRow }}" min="1"></div>
+    <input type="hidden" name="_token" value="{{ csrf_token('import_map' ~ job.id) }}">
+    <button class="btn" name="change_sheet" value="1" style="align-self:end">Перечитать</button>
+</form>
+{% if missing %}<div class="flash warning">Не найдены обязательные столбцы: {{ missing|join(', ') }}. Укажите их вручную.</div>{% endif %}
+<form method="post" class="panel">
+    <h3 style="margin-top:0">Сопоставление колонок с полями системы</h3>
+    <table>
+        <thead><tr><th>Поле системы</th><th>Колонка файла</th></tr></thead>
+        {% for k, f in fields %}
+            <tr><td>{{ f.label }}{% if f.required is defined %} <b>*</b>{% endif %}</td>
+                <td><select name="map[{{ k }}]"><option value="">— не импортировать —</option>
+                    {% for idx, h in job.headers %}<option value="{{ idx }}" {{ job.columnMap[k] is defined and job.columnMap[k] == idx ? 'selected' }}>{{ h }}</option>{% endfor %}</select></td></tr>
+        {% endfor %}
+    </table>
+    <input type="hidden" name="_token" value="{{ csrf_token('import_map' ~ job.id) }}">
+    <div class="actions" style="margin-top:12px"><button class="btn primary">Проанализировать данные</button>
+        <span class="help">Анализ формирует предварительный отчет; реестр не изменяется.</span></div>
+</form>
+{% endblock %}

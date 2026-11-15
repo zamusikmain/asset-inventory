@@ -1,0 +1,23 @@
+# PROD/TEST-стенд: docker compose -f compose.yaml -f compose.prod.yaml up -d
+# Секреты — в .env.local на сервере (не в репозитории).
+services:
+  php:
+    environment:
+      APP_ENV: prod
+      APP_DEBUG: "0"
+  worker:
+    environment:
+      APP_ENV: prod
+      APP_DEBUG: "0"
+  nginx:
+    ports: !override
+      - "80:80"
+      - "443:443"
+    volumes: !override
+      - ./public:/var/www/app/public:ro
+      - ./docker/nginx/prod.conf:/etc/nginx/conf.d/default.conf:ro
+      - /etc/asset-inventory/tls:/etc/nginx/tls:ro
+  db:
+    ports: []
+  mailpit:
+    profiles: [dev-only]

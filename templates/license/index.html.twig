@@ -1,0 +1,18 @@
+{% extends 'base.html.twig' %}
+{% block title %}Лицензии{% endblock %}
+{% block body %}
+<div class="actions" style="justify-content:space-between"><h1>Лицензии</h1><a class="btn primary" href="{{ path('license_new') }}">+ Добавить</a></div>
+<form class="filters panel"><div class="field" style="flex:1"><input type="search" name="q" value="{{ q }}" placeholder="Производитель, продукт, договор, ID подписки"></div><button class="btn">Найти</button></form>
+<div class="table-wrap"><table>
+    <thead><tr><th>Производитель / продукт</th><th>Тип</th><th>Договор</th><th class="right">Мест: занято / всего</th><th>Действует до</th><th>Статус</th><th>Ответственный</th></tr></thead>
+    {% for l in licenses %}
+        {% set st = l.effectiveStatus %}
+        <tr><td><a href="{{ path('license_show', {id: l.id}) }}">{{ l.vendor }} {{ l.product }}</a>{% if l.hasSecretKey %} 🔑{% endif %}</td><td class="small">{{ l.licenseTypeLabel }}</td>
+            <td class="small">{{ l.contract }}</td>
+            <td class="right {{ l.seatsUsed > l.seatsTotal ? 'diff-old' }}">{{ l.seatsUsed }} / {{ l.seatsTotal }}</td>
+            <td class="small">{{ l.validUntil|dt('d.m.Y') }}</td>
+            <td>{{ badge(l.effectiveStatusLabel, st == 'active' ? 'green' : (st == 'expiring' ? 'amber' : 'red')) }}</td>
+            <td class="small">{{ l.responsible ? l.responsible.name }}</td></tr>
+    {% else %}<tr><td colspan="7" class="muted">Лицензий нет</td></tr>{% endfor %}
+</table></div>
+{% endblock %}
